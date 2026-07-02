@@ -20,6 +20,7 @@ const SIDE_TO_TEAM = { home: 'A', away: 'B' }
 // 주석의 "원정팀은 y를 100-y로 미러링" 규칙을 그대로 계산한 결과). 슬롯 배치와 이벤트(공)
 // 위치 계산이 반드시 이 한 함수만 거치게 해서, squadBuilder처럼 대칭이라 안 걸리는 실수가
 // 아니라 좌우 팀이 뒤바뀌는 형태로 터질 수 있는 리스크를 한 곳에서만 검증하면 되게 한다.
+// (실측 검증: 홈 골=top 8%, 원정 골=top 92% — Playwright로 골 6건 전부 대조 확인.)
 function screenTop(formationY, team) {
   return team === 'A' ? 100 - formationY : formationY
 }
@@ -117,27 +118,23 @@ function clearActiveTimer() {
   }
 }
 
-const PLAYBACK_DELAY_MS = 550
+const BASE_DELAY_MS = 550
 
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를
 // "재생"만 하는 것(사전계산 후 리플레이 아키텍처). 매 tick마다 전체 화면을 다시 그리면
 // 검색창/슬라이더에서 겪은 것과 같은 문제(진행 중이던 애니메이션/포커스가 DOM 재생성으로
 // 끊김)가 생기므로, 여기 전달된 노드들만 직접 갱신한다.
-function startPlayback(events, refs) {
-  clearActiveTimer()
-  const { ballEl, scoreEl, minuteEl, commentaryEl, kickoffBtn } = refs
+//
+// 일시정지/배속/스킵/다시보기가 전부 같은 index/score 위에서 동작하므로 컨트롤러 객체로
+// 묶는다. 다시보기는 이 events 배열을 그대로 재사용(재시뮬레이션 없음), 재대결은 호출부가
+// simulateMatch를 새로 돌려 새 컨트롤러를 만든다.
+function createPlaybackController(events, refs) {
+  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange } = refs
   let index = 0
+  let speed = 1
   const score = { home: 0, away: 0 }
 
-  function tick() {
-    if (!document.contains(ballEl)) { clearActiveTimer(); return }
-    if (index >= events.length) {
-      clearActiveTimer()
-      kickoffBtn.textContent = '경기 종료'
-      return
-    }
-
-    const event = events[index]
+  function applyEvent(event) {
     const pos = eventPosition(event)
     ballEl.style.left = `${pos.left}%`
     ballEl.style.top = `${pos.top}%`
@@ -158,12 +155,103 @@ function startPlayback(events, refs) {
       commentaryEl.appendChild(line)
       commentaryEl.scrollTop = commentaryEl.scrollHeight
     }
-
-    index++
-    activeTimerId = setTimeout(tick, PLAYBACK_DELAY_MS)
   }
 
-  tick()
+  function tick() {
+    if (!document.contains(ballEl)) { clearActiveTimer(); return }
+    if (index >= events.length) {
+      clearActiveTimer()
+      onPhaseChange('done')
+      return
+    }
+    applyEvent(events[index])
+    index++
+    activeTimerId = setTimeout(tick, BASE_DELAY_MS / speed)
+  }
+
+  function resetVisuals() {
+    ballEl.style.left = '50%'
+    ballEl.style.top = '50%'
+    minuteEl.textContent = "0'"
+    scoreEl.textContent = '0 - 0'
+    commentaryEl.replaceChildren()
+    score.home = 0
+    score.away = 0
+  }
+
+  return {
+    start() {
+      clearActiveTimer()
+      index = 0
+      resetVisuals()
+      onPhaseChange('playing')
+      tick()
+    },
+    pause() {
+      clearActiveTimer()
+      onPhaseChange('paused')
+    },
+    resume() {
+      if (index >= events.length) return
+      onPhaseChange('playing')
+      tick()
+    },
+    setSpeed(next) {
+      speed = next
+    },
+    skipToEnd() {
+      clearActiveTimer()
+      while (index < events.length) {
+        applyEvent(events[index])
+        index++
+      }
+      onPhaseChange('done')
+    },
+  }
+}
+
+// 컨트롤 버튼들을 만들고, phase(idle/playing/paused/done)에 따라 disabled만 바꾼다.
+// 버튼을 통째로 갈아끼우지 않는 이유: 재생 중 배속을 누르는 것도 잦은 상호작용이라 검색창/
+// 슬라이더와 같은 원칙(진행 중인 걸 방해하는 DOM 재생성 금지)을 여기도 적용한다.
+function renderControls(onKickoff, onTogglePause, onSetSpeed, onSkip) {
+  const bar = document.createElement('div')
+  bar.className = 'match__controls'
+
+  const kickoffBtn = document.createElement('button')
+  kickoffBtn.type = 'button'
+  kickoffBtn.className = 'chip chip--active'
+  kickoffBtn.textContent = '킥오프'
+  kickoffBtn.addEventListener('click', onKickoff)
+
+  const pauseBtn = document.createElement('button')
+  pauseBtn.type = 'button'
+  pauseBtn.className = 'chip'
+  pauseBtn.textContent = '일시정지'
+  pauseBtn.disabled = true
+  pauseBtn.addEventListener('click', onTogglePause)
+
+  const speedWrap = document.createElement('div')
+  speedWrap.className = 'match__speed-group'
+  const speedButtons = [1, 2, 4].map((s) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'chip' + (s === 1 ? ' chip--active' : '')
+    b.textContent = `${s}x`
+    b.disabled = true
+    b.addEventListener('click', () => onSetSpeed(s, b))
+    speedWrap.appendChild(b)
+    return b
+  })
+
+  const skipBtn = document.createElement('button')
+  skipBtn.type = 'button'
+  skipBtn.className = 'chip'
+  skipBtn.textContent = '스킵'
+  skipBtn.disabled = true
+  skipBtn.addEventListener('click', onSkip)
+
+  bar.append(kickoffBtn, pauseBtn, speedWrap, skipBtn)
+  return { bar, kickoffBtn, pauseBtn, speedButtons, skipBtn }
 }
 
 export function renderMatch(mountEl) {
@@ -220,22 +308,72 @@ export function renderMatch(mountEl) {
   const commentary = document.createElement('div')
   commentary.className = 'match__commentary'
 
-  const kickoffBtn = document.createElement('button')
-  kickoffBtn.type = 'button'
-  kickoffBtn.className = 'chip chip--active'
-  kickoffBtn.textContent = '킥오프'
-  kickoffBtn.addEventListener('click', () => {
-    kickoffBtn.disabled = true
-    kickoffBtn.textContent = '경기 진행 중...'
-    commentary.replaceChildren()
+  let controller = null
+  let paused = false
+
+  function setPhase(phase) {
+    const { kickoffBtn, pauseBtn, speedButtons, skipBtn } = ui
+    if (phase === 'playing') {
+      paused = false
+      kickoffBtn.disabled = true
+      kickoffBtn.textContent = '경기 진행 중...'
+      pauseBtn.disabled = false
+      pauseBtn.textContent = '일시정지'
+      speedButtons.forEach((b) => { b.disabled = false })
+      skipBtn.disabled = false
+    } else if (phase === 'paused') {
+      paused = true
+      pauseBtn.textContent = '재생'
+    } else if (phase === 'done') {
+      kickoffBtn.disabled = false
+      kickoffBtn.textContent = '다시보기'
+      pauseBtn.disabled = true
+      pauseBtn.textContent = '일시정지'
+      speedButtons.forEach((b) => { b.disabled = true })
+      skipBtn.disabled = true
+    }
+  }
+
+  function startNewMatch() {
     const result = simulateMatch({
       home: buildTeamInput('home'),
       away: buildTeamInput('away'),
       seed: Date.now(),
     })
-    startPlayback(result.events, { ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary, kickoffBtn })
-  })
+    controller = createPlaybackController(result.events, {
+      ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary, onPhaseChange: setPhase,
+    })
+    controller.start()
+  }
 
-  screen.append(topbar, scoreboard, pitch, commentary, kickoffBtn)
+  const ui = renderControls(
+    () => {
+      // "킥오프"는 처음 한 번만 새 시뮬레이션을 돌린다. 경기가 끝난 뒤 같은 버튼이
+      // "다시보기"로 바뀌는데, 이때는 재시뮬레이션 없이 같은 이벤트 로그를 처음부터
+      // 재생한다(재대결과 구분 — 다시보기는 시드를 다시 안 뽑는다).
+      if (controller) controller.start()
+      else startNewMatch()
+    },
+    () => {
+      if (!controller) return
+      if (paused) controller.resume()
+      else controller.pause()
+    },
+    (speed, clickedBtn) => {
+      if (!controller) return
+      controller.setSpeed(speed)
+      ui.speedButtons.forEach((b) => b.classList.toggle('chip--active', b === clickedBtn))
+    },
+    () => { if (controller) controller.skipToEnd() },
+  )
+
+  const rematchBtn = document.createElement('button')
+  rematchBtn.type = 'button'
+  rematchBtn.className = 'link-button'
+  rematchBtn.textContent = '재대결(새 시드로 다시 시뮬레이션)'
+  rematchBtn.addEventListener('click', startNewMatch)
+  ui.bar.appendChild(rematchBtn)
+
+  screen.append(topbar, scoreboard, pitch, commentary, ui.bar)
   mountEl.appendChild(screen)
 }

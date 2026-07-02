@@ -93,3 +93,21 @@
   color: var(--accent-gold-bright);
   font-weight: 700;
 }
+
+.match__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.match__speed-group {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.match__controls .chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
