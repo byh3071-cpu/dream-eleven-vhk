@@ -1,5 +1,6 @@
 import { simulateMatch } from '../../src/sim/engine.js'
 import { makeSyntheticTeam } from '../fixtures/syntheticTeam.js'
+import { makeSkewedTeam } from '../fixtures/skewedTeam.js'
 
 // Goal 3 회귀 테스트 (goals/3-tactics.md):
 //   1) 지침 값을 바꾸면 Goal 2 몬테카를로 결과 분포(평균 득점/승률/이벤트 수)가
@@ -7,9 +8,7 @@ import { makeSyntheticTeam } from '../fixtures/syntheticTeam.js'
 //   2) 극단적 지침 하나가 상대 무관하게 항상 우세하지 않는다(스탯 격차를 못 뒤집음).
 // 팀 스탯 자체가 동일한 synthetic 팀끼리 비교해 "지침만의 효과"를 순수하게 검증한다.
 
-function runSeries(ratingA, ratingB, tacticsA, tacticsB, trials) {
-  const teamA = makeSyntheticTeam(ratingA)
-  const teamB = makeSyntheticTeam(ratingB)
+function runSeriesForTeams(teamA, teamB, tacticsA, tacticsB, trials) {
   let winsA = 0
   let winsB = 0
   let draws = 0
@@ -35,6 +34,10 @@ function runSeries(ratingA, ratingB, tacticsA, tacticsB, trials) {
     winRateA: winsA / trials,
     avgEvents: totalEvents / trials,
   }
+}
+
+function runSeries(ratingA, ratingB, tacticsA, tacticsB, trials) {
+  return runSeriesForTeams(makeSyntheticTeam(ratingA), makeSyntheticTeam(ratingB), tacticsA, tacticsB, trials)
 }
 
 describe('전술 지침 회귀 테스트 (Goal 3 — goals/3-tactics.md)', () => {
@@ -63,6 +66,21 @@ describe('전술 지침 회귀 테스트 (Goal 3 — goals/3-tactics.md)', () =>
     console.log(`[템포] 빠름=${fast.avgEvents.toFixed(1)}건 vs 느림=${slow.avgEvents.toFixed(1)}건`)
     // 실측: 빠름 32.0건 vs 느림 26.0건 (격차 6.0, 마진 3.0 확보)
     expect(fast.avgEvents).toBeGreaterThan(slow.avgEvents + 3)
+  })
+
+  test('폭: 측면 자원이 강한 팀은 좁게보다 넓게 설정했을 때 더 유리하다', () => {
+    // width는 채널 선택을 바꿔서 pickActor 풀 구성(어떤 포지션이 뽑히는지)을 바꾸는
+    // 방식이라 syntheticTeam(flat 스탯)으로는 검증 불가 — 채널이 바뀌어도 풀 안 선수
+    // 스탯이 다 똑같으면 결과가 항상 같다. 측면/중앙 스탯을 갈라놓은 skewedTeam으로만
+    // 드러난다. 효과 크기 자체는 멘탈리티/압박/템포보다 작다(듀얼당 4자리 풀 중 1자리만
+    // 바뀌는 구조라서) — 그래도 방향이 일관되고 N을 올릴수록 더 뚜렷해지므로 장식용은 아니다.
+    const wideStrong = makeSkewedTeam(99, 50) // 평균 67.8 — 아래 opponent와 전체 전력은 비슷
+    const opponent = makeSyntheticTeam(68)
+    const wide = runSeriesForTeams(wideStrong, opponent, { width: 1.0 }, {}, 400)
+    const narrow = runSeriesForTeams(wideStrong, opponent, { width: 0.0 }, {}, 400)
+    console.log(`[폭] 넓게=${(wide.winRateA * 100).toFixed(1)}% vs 좁게=${(narrow.winRateA * 100).toFixed(1)}%`)
+    // 실측: 넓게 26.1% vs 좁게 21.1% (격차 5.0pt, 마진 2.0pt 확보)
+    expect(wide.winRateA).toBeGreaterThan(narrow.winRateA + 0.02)
   })
 
   test('회귀: 극단적 지침을 전부 몰아줘도 큰 스탯 격차(25점)는 못 뒤집는다', () => {

@@ -38,7 +38,9 @@ export function mentalityDefendMult(mentality) {
   return 1 - clampMentality(mentality) * MENTALITY_STEP
 }
 
-const PRESSING_DEFEND_SPAN = 0.80 // pressing 0~1 -> defendScore -10%~+10%
+// divisor(CREATE_DIVISOR=250)가 완만해서 승률에 눈에 띄게 잡히려면 스팬을 크게 잡아야 했다
+// (±10%는 200경기 몬테카를로에서 승률 변화가 거의 0 — engine.tactics.test.js 실측 근거로 확정).
+const PRESSING_DEFEND_SPAN = 0.80 // pressing 0~1 -> defendScore -40%~+40%
 
 // 수비 중일 때 자기 압박 강도로 창조 단계 저지 스코어에 곱하는 배율.
 // 대가(스태미나 소모 가속)는 engine.js의 decayStamina가 별도로 담당한다.
