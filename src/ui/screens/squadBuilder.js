@@ -8,6 +8,7 @@ import { FORMATIONS, findFormation } from '../../data/formations.js'
 import { computeTeamRatings, overallStrength } from '../../sim/teamStrength.js'
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { createPlayerCard } from '../components/playerCard.js'
+import { navigate } from '../../router.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 
@@ -292,7 +293,17 @@ export function renderSquadBuilder(mountEl, params) {
   const title = document.createElement('div')
   title.className = 'topbar__title'
   title.textContent = `스쿼드 빌더 — ${SIDE_LABEL[side]}`
-  topbar.append(title, renderStrength(sideState, formation))
+
+  const topbarRight = document.createElement('div')
+  topbarRight.className = 'topbar__right'
+  const tacticsLink = document.createElement('button')
+  tacticsLink.type = 'button'
+  tacticsLink.className = 'link-button'
+  tacticsLink.textContent = '감독 지침 →'
+  tacticsLink.addEventListener('click', () => navigate(`/tactics/${side}`))
+  topbarRight.append(renderStrength(sideState, formation), tacticsLink)
+
+  topbar.append(title, topbarRight)
 
   const body = document.createElement('div')
   body.className = 'squad-builder__body'

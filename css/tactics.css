@@ -1,1 +1,54 @@
-/* Goal 5에서 채움: 감독 지침 화면(멘탈리티/압박/템포/폭 칩) */
+.tactics__body {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.tactics__section-label {
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+.tactics__section-hint {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  margin-top: 0.35rem;
+}
+
+.tactics__mentality-chips {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tactics__slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tactics__slider-edge {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.tactics__slider-edge--max {
+  text-align: right;
+}
+
+.tactics__slider-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent-gold);
+}
+
+.tactics__slider-value {
+  width: 42px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--accent-gold-bright);
+  font-weight: 700;
+  font-size: 0.85rem;
+}

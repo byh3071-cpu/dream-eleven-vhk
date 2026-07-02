@@ -77,3 +77,24 @@ a {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.link-button {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  padding: 0;
+}
+
+.link-button:hover {
+  color: var(--text-primary);
+}
