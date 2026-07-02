@@ -1,1 +1,96 @@
-/* Goal 5에서 채움: 결과 화면(스코어, 팀 스탯, 이벤트 타임라인) */
+.result__body {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.result__scoreboard {
+  text-align: center;
+}
+
+.result__side-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0 0.5rem;
+}
+
+.result__score {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.result__scorers {
+  display: flex;
+  gap: 1rem;
+}
+
+.result__scorers-col {
+  flex: 1;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.result__scorers-heading {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-dim);
+}
+
+.result__scorers-line {
+  font-size: 0.85rem;
+  padding: 0.15rem 0;
+}
+
+.result__scorers-line--none {
+  color: var(--text-dim);
+}
+
+.result__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.result__stats-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.result__stats-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.result__stats-row .result__stats-value:first-child {
+  text-align: right;
+}
+
+.result__stats-label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.result__timeline {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}

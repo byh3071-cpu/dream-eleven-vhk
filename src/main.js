@@ -2,6 +2,7 @@ import { registerRoute, startRouter, navigate } from './router.js'
 import { renderSquadBuilder } from './ui/screens/squadBuilder.js'
 import { renderTactics } from './ui/screens/tactics.js'
 import { renderMatch } from './ui/screens/match.js'
+import { renderResult } from './ui/screens/result.js'
 
 function renderHome(mountEl) {
   const screen = document.createElement('div')
@@ -23,27 +24,10 @@ function renderHome(mountEl) {
   mountEl.appendChild(screen)
 }
 
-function renderPlaceholder(label) {
-  return (mountEl, params) => {
-    const screen = document.createElement('div')
-    screen.className = 'screen'
-    const heading = document.createElement('h2')
-    heading.textContent = `${label} (준비 중)`
-    screen.appendChild(heading)
-    if (params && Object.keys(params).length > 0) {
-      const info = document.createElement('p')
-      info.style.color = 'var(--text-dim)'
-      info.textContent = JSON.stringify(params)
-      screen.appendChild(info)
-    }
-    mountEl.appendChild(screen)
-  }
-}
-
 registerRoute('/', renderHome)
 registerRoute('/squad/:side', renderSquadBuilder)
 registerRoute('/tactics/:side', renderTactics)
 registerRoute('/match', renderMatch)
-registerRoute('/result', renderPlaceholder('결과'))
+registerRoute('/result', renderResult)
 
 startRouter(document.getElementById('app'))

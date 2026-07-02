@@ -111,6 +111,16 @@ function withSlotPositions(squad11, formation) {
 // 루프와 겹쳐 두 배로 진행되는 문제). renderMatch 진입 시 항상 먼저 정리한다.
 let activeTimerId = null
 
+// result.js가 읽는 진입점 — squadBuilder.js/tactics.js의 getSquadState/getTacticsState와
+// 같은 패턴(store.js 없이 필요한 값만 읽기 전용으로 노출). 재생을 끝까지 안 보고 나가도
+// simulateMatch가 반환한 시점에 이미 결과가 확정돼 있으므로, 재생 완료 여부와 무관하게
+// 계산되는 즉시 저장한다.
+let lastMatchResult = null
+
+export function getLastMatchResult() {
+  return lastMatchResult
+}
+
 function clearActiveTimer() {
   if (activeTimerId !== null) {
     clearTimeout(activeTimerId)
@@ -331,6 +341,7 @@ export function renderMatch(mountEl) {
       pauseBtn.textContent = '일시정지'
       speedButtons.forEach((b) => { b.disabled = true })
       skipBtn.disabled = true
+      resultLink.hidden = false
     }
   }
 
@@ -340,6 +351,8 @@ export function renderMatch(mountEl) {
       away: buildTeamInput('away'),
       seed: Date.now(),
     })
+    lastMatchResult = result
+    resultLink.hidden = true
     controller = createPlaybackController(result.events, {
       ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary, onPhaseChange: setPhase,
     })
@@ -373,6 +386,14 @@ export function renderMatch(mountEl) {
   rematchBtn.textContent = '재대결(새 시드로 다시 시뮬레이션)'
   rematchBtn.addEventListener('click', startNewMatch)
   ui.bar.appendChild(rematchBtn)
+
+  const resultLink = document.createElement('button')
+  resultLink.type = 'button'
+  resultLink.className = 'link-button'
+  resultLink.textContent = '결과 화면 보기 →'
+  resultLink.hidden = true
+  resultLink.addEventListener('click', () => navigate('/result'))
+  ui.bar.appendChild(resultLink)
 
   screen.append(topbar, scoreboard, pitch, commentary, ui.bar)
   mountEl.appendChild(screen)
