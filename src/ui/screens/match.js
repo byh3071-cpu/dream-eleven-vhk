@@ -10,6 +10,7 @@ import { eventCommentary } from '../../sim/commentary.js'
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
+import { computeTarget, stepToward } from '../steering.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 const SIDE_TO_TEAM = { home: 'A', away: 'B' }
@@ -87,16 +88,22 @@ function renderGuard(mountEl, problems) {
   mountEl.appendChild(screen)
 }
 
-function renderStaticSlot(entry, team) {
+// steeringRefs가 주어지면 이 슬롯을 M8 스티어링 애니메이션 대상으로 등록한다(선수 토큰만 —
+// 좌표는 그대로 두고 재생 중 style.transform만 덧붙여서 미세하게 볼 쪽으로 쏠리게 만든다).
+function renderStaticSlot(entry, team, steeringRefs) {
   const el = document.createElement('div')
   el.className = 'pitch-slot pitch-slot--static'
-  el.style.left = `${entry.slot.x}%`
-  el.style.top = `${screenTop(entry.slot.y, team)}%`
+  const basePos = { left: entry.slot.x, top: screenTop(entry.slot.y, team) }
+  el.style.left = `${basePos.left}%`
+  el.style.top = `${basePos.top}%`
   el.appendChild(createPlayerBadge(entry.player, { size: 'sm' }))
   const name = document.createElement('div')
   name.className = 'pitch-slot__name'
   name.textContent = entry.player.name
   el.appendChild(name)
+  if (steeringRefs) {
+    steeringRefs.push({ el, basePos, pace: entry.player.stats.pace, current: { ...basePos } })
+  }
   return el
 }
 
@@ -110,6 +117,10 @@ function withSlotPositions(squad11, formation) {
 // setTimeout이 그대로 살아있다(고아 타이머가 사라진 DOM을 계속 갱신하려 하거나, 새 마운트의
 // 루프와 겹쳐 두 배로 진행되는 문제). renderMatch 진입 시 항상 먼저 정리한다.
 let activeTimerId = null
+
+// M8 스티어링 rAF 루프도 activeTimerId와 같은 이유로 모듈 스코프에 둔다 — 별개의 두 번째
+// 진행 루프이므로 같은 고아 상태 위험(라우터 unmount 훅 없음)이 그대로 적용된다.
+let activeRafId = null
 
 // result.js가 읽는 진입점 — squadBuilder.js/tactics.js의 getSquadState/getTacticsState와
 // 같은 패턴(store.js 없이 필요한 값만 읽기 전용으로 노출). 재생을 끝까지 안 보고 나가도
@@ -128,6 +139,13 @@ function clearActiveTimer() {
   }
 }
 
+function clearActiveRaf() {
+  if (activeRafId !== null) {
+    cancelAnimationFrame(activeRafId)
+    activeRafId = null
+  }
+}
+
 const BASE_DELAY_MS = 550
 
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를
@@ -139,13 +157,57 @@ const BASE_DELAY_MS = 550
 // 묶는다. 다시보기는 이 events 배열을 그대로 재사용(재시뮬레이션 없음), 재대결은 호출부가
 // simulateMatch를 새로 돌려 새 컨트롤러를 만든다.
 function createPlaybackController(events, refs) {
-  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange } = refs
+  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange, pitchEl, steeringRefs } = refs
   let index = 0
   let speed = 1
   const score = { home: 0, away: 0 }
+  let ballTarget = { left: 50, top: 50 }
+  let lastFrameTime = null
+  let pitchWidth = 0
+  let pitchHeight = 0
+
+  // 선수 토큰의 basePos 기준 애니메이션 오프셋을 픽셀로 변환해 transform에 얹는다.
+  // .pitch-slot 자체가 이미 transform: translate(-50%, -50%)로 중앙정렬돼 있으므로
+  // 여기서 덮어쓰지 않고 뒤에 이어붙인다.
+  function applyOffset(ref) {
+    const dxPx = ((ref.current.left - ref.basePos.left) / 100) * pitchWidth
+    const dyPx = ((ref.current.top - ref.basePos.top) / 100) * pitchHeight
+    ref.el.style.transform = `translate(-50%, -50%) translate(${dxPx}px, ${dyPx}px)`
+  }
+
+  function stepFrame(now) {
+    if (!document.contains(pitchEl)) { activeRafId = null; return }
+    const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
+    lastFrameTime = now
+    for (const ref of steeringRefs) {
+      const target = computeTarget(ref.basePos, ballTarget)
+      ref.current = stepToward(ref.current, target, ref.pace, deltaSeconds, speed)
+      applyOffset(ref)
+    }
+    activeRafId = requestAnimationFrame(stepFrame)
+  }
+
+  function startSteering() {
+    clearActiveRaf()
+    lastFrameTime = null
+    pitchWidth = pitchEl.offsetWidth
+    pitchHeight = pitchEl.offsetHeight
+    activeRafId = requestAnimationFrame(stepFrame)
+  }
+
+  // 스킵은 재생 없이 바로 최종 상태로 점프해야 하므로, 보간 없이 목표 지점에 즉시 스냅한다.
+  function snapPlayersToTarget() {
+    pitchWidth = pitchEl.offsetWidth
+    pitchHeight = pitchEl.offsetHeight
+    for (const ref of steeringRefs) {
+      ref.current = computeTarget(ref.basePos, ballTarget)
+      applyOffset(ref)
+    }
+  }
 
   function applyEvent(event) {
     const pos = eventPosition(event)
+    ballTarget = pos
     ballEl.style.left = `${pos.left}%`
     ballEl.style.top = `${pos.top}%`
     minuteEl.textContent = `${event.minute}'`
@@ -168,9 +230,10 @@ function createPlaybackController(events, refs) {
   }
 
   function tick() {
-    if (!document.contains(ballEl)) { clearActiveTimer(); return }
+    if (!document.contains(ballEl)) { clearActiveTimer(); clearActiveRaf(); return }
     if (index >= events.length) {
       clearActiveTimer()
+      clearActiveRaf()
       onPhaseChange('done')
       return
     }
@@ -182,39 +245,50 @@ function createPlaybackController(events, refs) {
   function resetVisuals() {
     ballEl.style.left = '50%'
     ballEl.style.top = '50%'
+    ballTarget = { left: 50, top: 50 }
     minuteEl.textContent = "0'"
     scoreEl.textContent = '0 - 0'
     commentaryEl.replaceChildren()
     score.home = 0
     score.away = 0
+    for (const ref of steeringRefs) {
+      ref.current = { ...ref.basePos }
+      ref.el.style.transform = 'translate(-50%, -50%)'
+    }
   }
 
   return {
     start() {
       clearActiveTimer()
+      clearActiveRaf()
       index = 0
       resetVisuals()
       onPhaseChange('playing')
       tick()
+      startSteering()
     },
     pause() {
       clearActiveTimer()
+      clearActiveRaf()
       onPhaseChange('paused')
     },
     resume() {
       if (index >= events.length) return
       onPhaseChange('playing')
       tick()
+      startSteering()
     },
     setSpeed(next) {
       speed = next
     },
     skipToEnd() {
       clearActiveTimer()
+      clearActiveRaf()
       while (index < events.length) {
         applyEvent(events[index])
         index++
       }
+      snapPlayersToTarget()
       onPhaseChange('done')
     },
   }
@@ -266,6 +340,7 @@ function renderControls(onKickoff, onTogglePause, onSetSpeed, onSkip) {
 
 export function renderMatch(mountEl) {
   clearActiveTimer()
+  clearActiveRaf()
 
   const homeProblem = checkReadiness('home')
   const awayProblem = checkReadiness('away')
@@ -303,11 +378,12 @@ export function renderMatch(mountEl) {
   const pitch = document.createElement('div')
   pitch.className = 'match__pitch'
   pitch.appendChild(renderPitchLines())
+  const steeringRefs = []
   for (const entry of withSlotPositions(homeSquad.squad11, homeSquad.formation)) {
-    pitch.appendChild(renderStaticSlot(entry, SIDE_TO_TEAM.home))
+    pitch.appendChild(renderStaticSlot(entry, SIDE_TO_TEAM.home, steeringRefs))
   }
   for (const entry of withSlotPositions(awaySquad.squad11, awaySquad.formation)) {
-    pitch.appendChild(renderStaticSlot(entry, SIDE_TO_TEAM.away))
+    pitch.appendChild(renderStaticSlot(entry, SIDE_TO_TEAM.away, steeringRefs))
   }
   const ball = document.createElement('div')
   ball.className = 'match__ball'
@@ -355,6 +431,7 @@ export function renderMatch(mountEl) {
     resultLink.hidden = true
     controller = createPlaybackController(result.events, {
       ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary, onPhaseChange: setPhase,
+      pitchEl: pitch, steeringRefs,
     })
     controller.start()
   }
