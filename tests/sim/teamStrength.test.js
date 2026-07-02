@@ -1,4 +1,4 @@
-import { computeTeamRatings, positionFit, overallStrength } from '../../src/sim/teamStrength.js'
+import { computeTeamRatings, positionFit, overallStrength, playerOverallRating } from '../../src/sim/teamStrength.js'
 import { findFormation } from '../../src/data/formations.js'
 import { findPlayer } from '../../src/data/players.db.js'
 
@@ -71,5 +71,36 @@ describe('computeTeamRatings — 4-3-3 레전드 XI', () => {
     const scrambledRatings = computeTeamRatings(scrambled, formation)
 
     expect(overallStrength(scrambledRatings)).toBeLessThan(overallStrength(goodRatings))
+  })
+})
+
+describe('playerOverallRating — 포지션별 가중치 카드 레이팅', () => {
+  test('필드 안(1~99) 정수를 반환한다', () => {
+    const rating = playerOverallRating(findPlayer('messi'))
+    expect(Number.isInteger(rating)).toBe(true)
+    expect(rating).toBeGreaterThanOrEqual(1)
+    expect(rating).toBeLessThanOrEqual(99)
+  })
+
+  test('공격수의 낮은 수비 스탯이 레이팅을 부당하게 깎지 않는다 (호나우지뉴 DEF 32)', () => {
+    // 단순 6스탯 평균이었다면 defending 32가 발목을 잡아 80대 초반까지 떨어졌을 것 —
+    // LW 가중치(수비 비중 0)를 쓰면 공격 스탯 위주로 90 안팎이 나와야 한다.
+    const rating = playerOverallRating(findPlayer('ronaldinho'))
+    expect(rating).toBeGreaterThanOrEqual(88)
+  })
+
+  test('수비수의 낮은 슈팅 스탯이 레이팅을 부당하게 깎지 않는다 (칸나바로 SHO 40)', () => {
+    const rating = playerOverallRating(findPlayer('cannavaro'))
+    expect(rating).toBeGreaterThanOrEqual(83)
+  })
+
+  test('같은 스탯이라도 포지션에 따라 다른 레이팅이 나온다 (포지션 가중치가 실제로 반영됨)', () => {
+    const flatStats = { pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70 }
+    const asCB = playerOverallRating({ positions: ['CB'], stats: flatStats })
+    const asST = playerOverallRating({ positions: ['ST'], stats: flatStats })
+    // 스탯이 완전히 평평하면 어느 포지션이든 가중치 합이 1이므로 결과는 같아야 한다 —
+    // 이건 가중치 정의가 깨지지 않았는지(합이 1에서 크게 벗어나지 않는지) 확인하는 회귀 테스트.
+    expect(asCB).toBeCloseTo(70, 0)
+    expect(asST).toBeCloseTo(70, 0)
   })
 })

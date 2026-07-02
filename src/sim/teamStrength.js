@@ -81,3 +81,27 @@ export function computeTeamRatings(squad11, formation) {
 export function overallStrength(ratings) {
   return (ratings.gkRating + ratings.defenseRating * 2 + ratings.midfieldRating * 2 + ratings.attackRating * 2) / 7
 }
+
+// 카드에 표시할 "개인 종합 레이팅". 포지션 무관하게 6개 스탯을 똑같이 평균 내면 수비 스탯이
+// 낮은 공격수(윙어/스트라이커)가 부당하게 낮게 나온다(예: 호나우지뉴 DEF 32가 발목을 잡아
+// 평균 81 — 체감상 "너프"로 보임). 실제 FIFA/FC류처럼 포지션별로 실제 관련 있는 스탯만
+// 크게 반영해서, 그 포지션에서 안 쓰는 스탯(윙어의 수비력 등)이 레이팅을 깎지 않게 한다.
+const RATING_WEIGHTS = {
+  GK: (s) => s.defending * 0.85 + s.physical * 0.15,
+  CB: (s) => s.defending * 0.5 + s.physical * 0.3 + s.pace * 0.2,
+  LB: (s) => s.defending * 0.35 + s.pace * 0.3 + s.dribbling * 0.2 + s.physical * 0.15,
+  RB: (s) => s.defending * 0.35 + s.pace * 0.3 + s.dribbling * 0.2 + s.physical * 0.15,
+  DM: (s) => s.defending * 0.4 + s.passing * 0.3 + s.physical * 0.2 + s.dribbling * 0.1,
+  CM: (s) => s.passing * 0.35 + s.dribbling * 0.25 + s.defending * 0.2 + s.physical * 0.2,
+  AM: (s) => s.passing * 0.3 + s.dribbling * 0.3 + s.shooting * 0.25 + s.pace * 0.15,
+  LM: (s) => s.dribbling * 0.3 + s.passing * 0.25 + s.pace * 0.25 + s.defending * 0.2,
+  RM: (s) => s.dribbling * 0.3 + s.passing * 0.25 + s.pace * 0.25 + s.defending * 0.2,
+  LW: (s) => s.pace * 0.3 + s.dribbling * 0.3 + s.shooting * 0.3 + s.passing * 0.1,
+  RW: (s) => s.pace * 0.3 + s.dribbling * 0.3 + s.shooting * 0.3 + s.passing * 0.1,
+  ST: (s) => s.shooting * 0.45 + s.dribbling * 0.2 + s.pace * 0.2 + s.physical * 0.15,
+}
+
+export function playerOverallRating(player) {
+  const weightFn = RATING_WEIGHTS[player.positions[0]] ?? RATING_WEIGHTS.CM
+  return Math.round(weightFn(player.stats))
+}
