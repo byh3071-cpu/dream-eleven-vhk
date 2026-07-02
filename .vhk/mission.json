@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "objective": "Goal 0: 프로젝트 스캐폴딩 — package.json/eslint/vercel.json/index.html 셸/라우터",
+  "objective": "Goal 1: 선수 스키마 + 픽스처 데이터 + 포메이션 — player-schema/players.db/formations/teamStrength",
   "scope": [
-    "package.json,eslint.config.js,vercel.json,index.html,css/**,src/main.js,src/router.js"
+    "src/data/**,src/sim/teamStrength.js,tests/data/**,tests/sim/teamStrength.test.js"
   ],
   "forbidden": [
-    "src/sim/**,src/data/**"
+    "src/ui/**"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-02T11:23:29.103Z"
+  "updatedAt": "2026-07-02T11:30:54.132Z"
 }

@@ -3,8 +3,9 @@ vhk_format: 1
 type: goal
 id: 1
 title: 선수 스키마 + 픽스처 데이터 + 포메이션
-status: NOT_STARTED
+status: DONE
 priority: P0
+completed: 2026-07-02
 ---
 
 # Goal 1: 선수 스키마 + 픽스처 데이터 + 포메이션
