@@ -15,8 +15,13 @@ export function eventCommentary(event, findPlayer) {
 
   switch (event.type) {
     case 'goal': {
-      const assist = findPlayer(event.assistId)
-      return `${event.minute}' 골! ${team} ${actor.name}의 득점 (어시스트: ${assist.name})`
+      // possession.js가 슈터/어시스터를 같은 스쿼드에서 독립적으로 뽑기 때문에(서로 배제
+      // 안 함) 같은 선수가 두 역할 다 뽑히는 자가 어시스트가 실제로 발생한다 — 스탯 계산에는
+      // 안 쓰이는 커멘터리 텍스트뿐이라 여기서만 걸러준다.
+      const assist = event.assistId && event.assistId !== event.actorId ? findPlayer(event.assistId) : null
+      return assist
+        ? `${event.minute}' 골! ${team} ${actor.name}의 득점 (어시스트: ${assist.name})`
+        : `${event.minute}' 골! ${team} ${actor.name}의 득점`
     }
     case 'shot_saved': {
       const gk = findPlayer(event.gkId)

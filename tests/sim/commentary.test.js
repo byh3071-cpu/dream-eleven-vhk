@@ -22,6 +22,15 @@ describe('eventCommentary', () => {
     expect(text).toContain('안드레스 이니에스타')
   })
 
+  test('득점자와 어시스트가 같은 선수면(자가 어시스트) 어시스트 문구를 생략한다', () => {
+    // possession.js가 슈터/어시스터를 같은 스쿼드에서 독립적으로 뽑아서 실제로 발생하는
+    // 케이스 — "어시스트: 킬리안 음바페"처럼 자기 자신을 어시스트로 표기하면 안 됨.
+    const text = eventCommentary(
+      { type: 'goal', minute: 20, team: 'A', actorId: 'mbappe', assistId: 'mbappe' }, findPlayer)
+    expect(text).toContain('킬리안 음바페의 득점')
+    expect(text).not.toContain('어시스트')
+  })
+
   test('원정팀(B) 이벤트는 "원정"으로 표기한다', () => {
     const text = eventCommentary(
       { type: 'shot_off_target', minute: 33, team: 'B', actorId: 'mbappe' }, findPlayer)
