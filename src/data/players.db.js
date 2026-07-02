@@ -371,6 +371,61 @@ export const PLAYERS = [
     stats: { pace: 55, shooting: 15, passing: 60, dribbling: 40, defending: 87, physical: 78 },
     traits: [],
   },
+  // 사용자 피드백 반영 (2026-07-02, 3차) — 풀백(LB/RB) 라인 집중 보강 9명.
+  {
+    id: 'maicon', name: '마이콘', era: 'legend', age: 29,
+    positions: ['RB'],
+    stats: { pace: 90, shooting: 75, passing: 74, dribbling: 80, defending: 82, physical: 86 },
+    traits: ['tackle_specialist', 'aerial_threat'],
+  },
+  {
+    id: 'thuram', name: '릴리앙 튀랑', era: 'legend', age: 26,
+    positions: ['RB', 'CB'],
+    stats: { pace: 84, shooting: 45, passing: 76, dribbling: 68, defending: 90, physical: 86 },
+    traits: ['tackle_specialist', 'aerial_threat'],
+  },
+  {
+    id: 'carlos_alberto', name: '카를로스 아우베르투', era: 'legend', age: 26,
+    positions: ['RB'],
+    stats: { pace: 85, shooting: 78, passing: 80, dribbling: 78, defending: 78, physical: 78 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'ashley_cole', name: '애슐리 콜', era: 'legend', age: 24,
+    positions: ['LB'],
+    stats: { pace: 88, shooting: 55, passing: 74, dribbling: 76, defending: 88, physical: 76 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'carvajal', name: '다니 카르바할', era: 'active', age: 28,
+    positions: ['RB'],
+    stats: { pace: 82, shooting: 58, passing: 78, dribbling: 74, defending: 84, physical: 78 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'marcelo', name: '마르셀로', era: 'legend', age: 27,
+    positions: ['LB'],
+    stats: { pace: 87, shooting: 68, passing: 80, dribbling: 90, defending: 68, physical: 72 },
+    traits: ['dribbler', 'left_footed'],
+  },
+  {
+    id: 'dani_alves', name: '다니 알베스', era: 'legend', age: 27,
+    positions: ['RB'],
+    stats: { pace: 86, shooting: 65, passing: 85, dribbling: 82, defending: 78, physical: 74 },
+    traits: ['playmaker_vision', 'dribbler'],
+  },
+  {
+    id: 'gary_neville', name: '개리 네빌', era: 'legend', age: 26,
+    positions: ['RB'],
+    stats: { pace: 74, shooting: 45, passing: 76, dribbling: 62, defending: 82, physical: 78 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'jordi_alba', name: '조르디 알바', era: 'active', age: 27,
+    positions: ['LB'],
+    stats: { pace: 92, shooting: 62, passing: 78, dribbling: 78, defending: 72, physical: 68 },
+    traits: [],
+  },
 ]
 
 export function findPlayer(id) {
