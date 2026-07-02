@@ -135,6 +135,73 @@ export const PLAYERS = [
     stats: { pace: 97, shooting: 88, passing: 78, dribbling: 90, defending: 38, physical: 78 },
     traits: ['right_footed', 'poacher'],
   },
+  // 사용자 피드백 반영 (2026-07-02) — 로스터 리뷰 후 포지션 커버리지 보강용 11명 추가.
+  {
+    id: 'yashin', name: '레프 야신', era: 'legend', age: 33,
+    positions: ['GK'],
+    stats: { pace: 55, shooting: 15, passing: 65, dribbling: 45, defending: 94, physical: 80 },
+    traits: [],
+  },
+  {
+    id: 'cannavaro', name: '파비오 칸나바로', era: 'legend', age: 33,
+    positions: ['CB'],
+    stats: { pace: 74, shooting: 40, passing: 72, dribbling: 62, defending: 94, physical: 82 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'nesta', name: '알레산드로 네스타', era: 'legend', age: 28,
+    positions: ['CB'],
+    stats: { pace: 76, shooting: 35, passing: 74, dribbling: 68, defending: 95, physical: 83 },
+    traits: ['tackle_specialist'],
+  },
+  {
+    id: 'lahm', name: '필립 람', era: 'legend', age: 30,
+    positions: ['RB', 'LB', 'DM'],
+    stats: { pace: 84, shooting: 55, passing: 85, dribbling: 82, defending: 84, physical: 70 },
+    traits: ['tackle_specialist', 'playmaker_vision'],
+  },
+  {
+    id: 'matthaus', name: '로타어 마테우스', era: 'legend', age: 29,
+    positions: ['CM', 'DM'],
+    stats: { pace: 74, shooting: 82, passing: 86, dribbling: 75, defending: 78, physical: 84 },
+    traits: ['playmaker_vision', 'tackle_specialist'],
+  },
+  {
+    id: 'cruyff', name: '요한 크루이프', era: 'legend', age: 27,
+    positions: ['ST', 'AM'],
+    stats: { pace: 88, shooting: 85, passing: 90, dribbling: 93, defending: 45, physical: 65 },
+    traits: ['playmaker_vision', 'dribbler'],
+  },
+  {
+    id: 'sneijder', name: '베슬리 스네이더', era: 'legend', age: 26,
+    positions: ['AM', 'CM'],
+    stats: { pace: 72, shooting: 86, passing: 91, dribbling: 84, defending: 45, physical: 62 },
+    traits: ['playmaker_vision', 'free_kick_specialist'],
+  },
+  {
+    id: 'robben', name: '아르연 로벤', era: 'legend', age: 28,
+    positions: ['RW', 'RM'],
+    stats: { pace: 93, shooting: 87, passing: 78, dribbling: 92, defending: 30, physical: 68 },
+    traits: ['left_footed', 'dribbler'],
+  },
+  {
+    id: 'ribery', name: '프랑크 리베리', era: 'legend', age: 30,
+    positions: ['LW', 'LM'],
+    stats: { pace: 89, shooting: 80, passing: 82, dribbling: 94, defending: 32, physical: 65 },
+    traits: ['dribbler'],
+  },
+  {
+    id: 'shevchenko', name: '안드리 셰브첸코', era: 'legend', age: 28,
+    positions: ['ST', 'LW'],
+    stats: { pace: 88, shooting: 92, passing: 72, dribbling: 85, defending: 32, physical: 80 },
+    traits: ['poacher', 'aerial_threat'],
+  },
+  {
+    id: 'van_nistelrooy', name: '루드 반 니스텔로이', era: 'legend', age: 27,
+    positions: ['ST'],
+    stats: { pace: 80, shooting: 93, passing: 70, dribbling: 75, defending: 30, physical: 82 },
+    traits: ['poacher', 'aerial_threat'],
+  },
 ]
 
 export function findPlayer(id) {
