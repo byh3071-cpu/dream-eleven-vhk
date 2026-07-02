@@ -1,4 +1,5 @@
 import { registerRoute, startRouter, navigate } from './router.js'
+import { renderSquadBuilder } from './ui/screens/squadBuilder.js'
 
 function renderHome(mountEl) {
   const screen = document.createElement('div')
@@ -38,7 +39,7 @@ function renderPlaceholder(label) {
 }
 
 registerRoute('/', renderHome)
-registerRoute('/squad/:side', renderPlaceholder('스쿼드 빌더'))
+registerRoute('/squad/:side', renderSquadBuilder)
 registerRoute('/tactics/:side', renderPlaceholder('감독 지침'))
 registerRoute('/match', renderPlaceholder('경기 관전'))
 registerRoute('/result', renderPlaceholder('결과'))
