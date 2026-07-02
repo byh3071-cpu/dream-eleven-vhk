@@ -3,8 +3,9 @@ vhk_format: 1
 type: goal
 id: 3
 title: 전술 지침 반영 + 회귀 테스트
-status: NOT_STARTED
+status: DONE
 priority: P0
+completed: 2026-07-02
 ---
 
 # Goal 3: 전술 지침 반영 + 회귀 테스트

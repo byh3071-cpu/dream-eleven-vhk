@@ -10,6 +10,11 @@ export const TRAIT_HOOKS = {
   right_footed: {
     onShot: (player, ctx) => (ctx.footChannel === 'left' ? { accuracyMult: 0.88 } : null),
   },
+  // 주의: possession.js의 현재 2단계 체인은 세트피스/공중볼 상황을 만들지 않는다
+  // (onSetPiece 호출 자체가 없고 duelType: 'aerial'도 발생하지 않음) — 아래 두 훅은
+  // 정의는 되어 있지만 실제 체인에서 발동하지 않는다. 세트피스·크로스 서브시스템을
+  // 추가하는 별도 Goal 전까지는 장식용 상태임을 인지하고 둔다(제거하지 않는 이유:
+  // 훅 자체는 올바르고, 향후 서브시스템 추가 시 연결만 하면 됨).
   free_kick_specialist: {
     onSetPiece: (player, ctx) => (ctx.setPieceType === 'free_kick' ? { successBonus: 0.12 } : null),
   },
@@ -23,7 +28,7 @@ export const TRAIT_HOOKS = {
     onDuel: (player, ctx) => (ctx.duelType === 'progression' ? { scoreMult: 1.1 } : null),
   },
   dribbler: {
-    onDuel: (player, ctx) => (ctx.duelType === 'creation' ? { scoreMult: 1.12 } : null),
+    onDuel: (player, ctx) => (ctx.duelType === 'progression' ? { scoreMult: 1.12 } : null),
   },
   veteran_declining: {
     onStaminaDecay: () => ({ rateMult: 1.3 }),

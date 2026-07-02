@@ -4,6 +4,7 @@ import { applyTraitHooks } from './traits.js'
 import { staminaFactor } from './stamina.js'
 import { BANDS, zoneDistance, pickChannel } from './zones.js'
 import { primaryPosition } from '../data/player-schema.js'
+import { mentalityAttackMult, mentalityDefendMult, pressingDefendMult, tempoAccuracyMult } from './tactics-modifiers.js'
 
 // 포제션 체인 = 2번의 순차 판정(창조 -> 마무리)만 거친다.
 // 애초 설계는 buildup/creation/onTarget/save 4단계였는데, 4단계가 전부 같은 방향으로
@@ -70,8 +71,15 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
   const creatorMods = applyTraitHooks(creator.player, 'onDuel', createCtx)
   const presserMods = applyTraitHooks(presser.player, 'onDuel', presserCtx)
 
-  const createScore = progressionScore(creator.player.stats) * creatorStaminaF * (creatorMods.scoreMult ?? 1)
-  const defendScore = presser.player.stats.defending * presserStaminaF * (presserMods.scoreMult ?? 1)
+  const creatorMentalityMult = mentalityAttackMult(possessing.tactics?.mentality)
+  const creatorTempoMult = tempoAccuracyMult(possessing.tactics?.tempo)
+  const presserMentalityMult = mentalityDefendMult(defending.tactics?.mentality)
+  const presserPressingMult = pressingDefendMult(defending.tactics?.pressing)
+
+  const createScore = progressionScore(creator.player.stats) * creatorStaminaF
+    * (creatorMods.scoreMult ?? 1) * creatorMentalityMult * creatorTempoMult
+  const defendScore = presser.player.stats.defending * presserStaminaF
+    * (presserMods.scoreMult ?? 1) * presserMentalityMult * presserPressingMult
 
   const createChance = successChance(createScore, defendScore, divisor ?? CREATE_DIVISOR)
   if (!rollSuccess(rng, createChance)) {
@@ -92,7 +100,8 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
   const shotCtx = { duelType: 'shot', zoneBand: 'BOX', channel, footChannel: footChannelOf(channel) }
   const shotMods = applyTraitHooks(shooter.player, 'onShot', shotCtx)
 
-  const shotQuality = shooter.player.stats.shooting * shooterStaminaF * (shotMods.accuracyMult ?? 1)
+  const shotQuality = shooter.player.stats.shooting * shooterStaminaF
+    * (shotMods.accuracyMult ?? 1) * mentalityAttackMult(possessing.tactics?.mentality)
   const saveScore = gk.player.stats.defending * gkStaminaF
 
   const rawFinishChance = successChance(shotQuality, saveScore, divisor ?? FINISH_DIVISOR)

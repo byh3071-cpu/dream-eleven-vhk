@@ -2,6 +2,7 @@ import { createRng, randInt, deriveSeed } from './rng.js'
 import { computeTeamRatings } from './teamStrength.js'
 import { initialStaminaState, decayStamina } from './stamina.js'
 import { resolveChain, decidePossession } from './possession.js'
+import { tempoChainDelta } from './tactics-modifiers.js'
 
 const BASE_CHAIN_COUNT = 26
 const MATCH_MINUTES = 90
@@ -46,8 +47,9 @@ export function simulateMatch({ home, away, seed, divisor }) {
 
   const pressingHome = home.tactics?.pressing ?? 0.5
   const pressingAway = away.tactics?.pressing ?? 0.5
+  const tempoDelta = tempoChainDelta(home.tactics?.tempo, away.tactics?.tempo)
   const chainCount = Math.max(10, Math.round(
-    BASE_CHAIN_COUNT + (pressingHome + pressingAway) * 3 + randInt(structureRng, -3, 3),
+    BASE_CHAIN_COUNT + (pressingHome + pressingAway) * 3 + tempoDelta + randInt(structureRng, -3, 3),
   ))
   const minutes = distributeMinutes(chainCount, structureRng)
 
