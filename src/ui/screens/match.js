@@ -10,7 +10,7 @@ import { eventCommentary } from '../../sim/commentary.js'
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
-import { computeTarget, stepToward } from '../steering.js'
+import { computeTarget, springStep, MAX_SUBSTEP } from '../steering.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 const SIDE_TO_TEAM = { home: 'A', away: 'B' }
@@ -102,7 +102,10 @@ function renderStaticSlot(entry, team, steeringRefs) {
   name.textContent = entry.player.name
   el.appendChild(name)
   if (steeringRefs) {
-    steeringRefs.push({ el, basePos, pace: entry.player.stats.pace, current: { ...basePos } })
+    steeringRefs.push({
+      el, basePos, team, pace: entry.player.stats.pace,
+      current: { ...basePos }, velocity: { left: 0, top: 0 },
+    })
   }
   return el
 }
@@ -162,6 +165,9 @@ function createPlaybackController(events, refs) {
   let speed = 1
   const score = { home: 0, away: 0 }
   let ballTarget = { left: 50, top: 50 }
+  // 이 이벤트를 만든(=이 순간 볼을 가진) 팀. steering.js의 computeTarget이 소유/비소유팀을
+  // 다르게 반응시키는 데 쓴다 — null이면(킥오프 직전) 양팀 다 "비소유" 취급.
+  let possessionTeam = null
   let lastFrameTime = null
   let pitchWidth = 0
   let pitchHeight = 0
@@ -179,9 +185,18 @@ function createPlaybackController(events, refs) {
     if (!document.contains(pitchEl)) { activeRafId = null; return }
     const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
     lastFrameTime = now
+    // 스프링 적분은 deltaSeconds가 크면(프레임 드랍 등) 발산할 수 있어 작은 서브스텝으로
+    // 쪼갠다. target은 프레임당 한 번만 계산(볼 위치는 프레임 중 안 바뀜), 적분만 반복.
+    const substeps = deltaSeconds === 0 ? 0 : Math.ceil(deltaSeconds / MAX_SUBSTEP)
+    const subDt = substeps === 0 ? 0 : deltaSeconds / substeps
     for (const ref of steeringRefs) {
-      const target = computeTarget(ref.basePos, ballTarget)
-      ref.current = stepToward(ref.current, target, ref.pace, deltaSeconds, speed)
+      const hasPossession = ref.team === possessionTeam
+      const target = computeTarget(ref.basePos, ballTarget, ref.team, hasPossession)
+      for (let s = 0; s < substeps; s++) {
+        const result = springStep(ref.current, ref.velocity, target, ref.pace, subDt, speed)
+        ref.current = result.current
+        ref.velocity = result.velocity
+      }
       applyOffset(ref)
     }
     activeRafId = requestAnimationFrame(stepFrame)
@@ -196,11 +211,15 @@ function createPlaybackController(events, refs) {
   }
 
   // 스킵은 재생 없이 바로 최종 상태로 점프해야 하므로, 보간 없이 목표 지점에 즉시 스냅한다.
+  // velocity도 같이 0으로 되돌려야 한다 — 안 그러면 이후 다시보기/재대결이 이 잔여 속도를
+  // 이어받아 첫 프레임에 튀는 것처럼 보인다.
   function snapPlayersToTarget() {
     pitchWidth = pitchEl.offsetWidth
     pitchHeight = pitchEl.offsetHeight
     for (const ref of steeringRefs) {
-      ref.current = computeTarget(ref.basePos, ballTarget)
+      const hasPossession = ref.team === possessionTeam
+      ref.current = computeTarget(ref.basePos, ballTarget, ref.team, hasPossession)
+      ref.velocity = { left: 0, top: 0 }
       applyOffset(ref)
     }
   }
@@ -208,6 +227,7 @@ function createPlaybackController(events, refs) {
   function applyEvent(event) {
     const pos = eventPosition(event)
     ballTarget = pos
+    possessionTeam = event.team
     ballEl.style.left = `${pos.left}%`
     ballEl.style.top = `${pos.top}%`
     minuteEl.textContent = `${event.minute}'`
@@ -246,6 +266,7 @@ function createPlaybackController(events, refs) {
     ballEl.style.left = '50%'
     ballEl.style.top = '50%'
     ballTarget = { left: 50, top: 50 }
+    possessionTeam = null
     minuteEl.textContent = "0'"
     scoreEl.textContent = '0 - 0'
     commentaryEl.replaceChildren()
@@ -253,6 +274,7 @@ function createPlaybackController(events, refs) {
     score.away = 0
     for (const ref of steeringRefs) {
       ref.current = { ...ref.basePos }
+      ref.velocity = { left: 0, top: 0 }
       ref.el.style.transform = 'translate(-50%, -50%)'
     }
   }
