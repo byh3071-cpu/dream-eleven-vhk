@@ -1,6 +1,7 @@
 import { registerRoute, startRouter, navigate } from './router.js'
 import { renderSquadBuilder } from './ui/screens/squadBuilder.js'
 import { renderTactics } from './ui/screens/tactics.js'
+import { renderMatch } from './ui/screens/match.js'
 
 function renderHome(mountEl) {
   const screen = document.createElement('div')
@@ -42,7 +43,7 @@ function renderPlaceholder(label) {
 registerRoute('/', renderHome)
 registerRoute('/squad/:side', renderSquadBuilder)
 registerRoute('/tactics/:side', renderTactics)
-registerRoute('/match', renderPlaceholder('경기 관전'))
+registerRoute('/match', renderMatch)
 registerRoute('/result', renderPlaceholder('결과'))
 
 startRouter(document.getElementById('app'))

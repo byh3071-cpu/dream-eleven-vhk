@@ -8,6 +8,7 @@ import { FORMATIONS, findFormation } from '../../data/formations.js'
 import { computeTeamRatings, overallStrength } from '../../sim/teamStrength.js'
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { createPlayerCard } from '../components/playerCard.js'
+import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
@@ -33,6 +34,23 @@ function getSquad11(sideState) {
     player: findPlayer(playerId),
     slotIndex,
   }))
+}
+
+// match.js가 킥오프 전에 읽는 진입점. store.js 같은 공용 상태 모듈을 새로 만들지 않고
+// 필요한 값만 읽기 전용으로 노출한다(소비자가 아직 하나뿐이라 추상화는 과함).
+// hasGoalkeeper는 "GK 슬롯에 누가 있는가"가 아니라 "11명 중 GK 포지션 보유자가 있는가"다 —
+// possession.js의 goalkeeperEntry가 정확히 그 기준으로 찾기 때문에(슬롯 위치 무관, positions
+// 배열에 'GK'가 있는 선수를 전체에서 검색) 이 기준이 어긋나면 킥오프 후 크래시로 이어진다.
+export function getSquadState(side) {
+  const sideState = state[side]
+  const formation = findFormation(sideState.formationId)
+  const squad11 = getSquad11(sideState)
+  return {
+    formation,
+    squad11,
+    isFull: sideState.assignments.length === formation.slots.length,
+    hasGoalkeeper: squad11.some(({ player }) => player.positions.includes('GK')),
+  }
 }
 
 // 슬롯에 배정하면 그 슬롯에 있던 선수와, 그 선수가 다른 슬롯에 이미 있었다면 그 자리 둘 다
@@ -81,36 +99,6 @@ function renderFormationChips(sideState, onChange) {
     wrap.appendChild(chip)
   }
   return wrap
-}
-
-function renderPitchLines() {
-  const svgNS = 'http://www.w3.org/2000/svg'
-  const svg = document.createElementNS(svgNS, 'svg')
-  svg.setAttribute('class', 'pitch-lines')
-  svg.setAttribute('viewBox', '0 0 100 100')
-  svg.setAttribute('preserveAspectRatio', 'none')
-
-  const stroke = 'rgba(240, 244, 240, 0.35)'
-  const addShape = (tag, attrs) => {
-    const el = document.createElementNS(svgNS, tag)
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
-    el.setAttribute('fill', 'none')
-    el.setAttribute('stroke', stroke)
-    el.setAttribute('stroke-width', '0.4')
-    svg.appendChild(el)
-  }
-
-  addShape('rect', { x: 2, y: 2, width: 96, height: 96 })
-  addShape('line', { x1: 2, y1: 50, x2: 98, y2: 50 })
-  addShape('circle', { cx: 50, cy: 50, r: 9 })
-  // 아래(y=0 쪽, 자기 골) 페널티/골에어리어
-  addShape('rect', { x: 22, y: 2, width: 56, height: 16 })
-  addShape('rect', { x: 38, y: 2, width: 24, height: 6 })
-  // 위(y=100 쪽, 상대 골) 페널티/골에어리어
-  addShape('rect', { x: 22, y: 82, width: 56, height: 16 })
-  addShape('rect', { x: 38, y: 92, width: 24, height: 6 })
-
-  return svg
 }
 
 function renderEmptySlotBadge(role) {

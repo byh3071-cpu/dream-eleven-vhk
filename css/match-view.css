@@ -1,1 +1,95 @@
-/* Goal 4/5에서 채움: 경기 관전 화면(필드, 스코어보드, 커멘터리, 재생 컨트롤) */
+.match__guard {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.match__guard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.match__pitch {
+  position: relative;
+  width: 480px;
+  aspect-ratio: 68 / 100;
+  margin: 0 auto;
+  background: radial-gradient(ellipse at 50% 50%, #16321f 0%, #0e2015 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.match__pitch svg.pitch-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pitch-slot--static {
+  cursor: default;
+}
+
+.match__ball {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-gold-bright);
+  box-shadow: 0 0 6px 1px rgba(255, 216, 115, 0.7);
+  transform: translate(-50%, -50%);
+  transition: left 0.5s ease, top 0.5s ease;
+}
+
+.match__scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 0.5rem;
+}
+
+.match__minute {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.match__score {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.match__commentary {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.match__commentary-line {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.match__commentary-line--goal {
+  color: var(--accent-gold-bright);
+  font-weight: 700;
+}

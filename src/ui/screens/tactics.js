@@ -26,6 +26,11 @@ const SLIDER_FIELDS = [
 
 const state = { home: { ...DEFAULT_TACTICS }, away: { ...DEFAULT_TACTICS } }
 
+// match.js가 킥오프 전에 읽는 진입점 — squadBuilder.js의 getSquadState와 같은 패턴.
+export function getTacticsState(side) {
+  return { ...state[side] }
+}
+
 function renderMentalitySection(sideState, onChange) {
   const section = document.createElement('div')
   const label = document.createElement('div')
