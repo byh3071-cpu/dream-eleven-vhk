@@ -16,6 +16,7 @@
 .squad-builder__body {
   flex: 1;
   display: flex;
+  align-items: flex-start;
   gap: 1.25rem;
   min-height: 0;
 }
