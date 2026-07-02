@@ -134,6 +134,22 @@ export function renderTactics(mountEl, params) {
   body.appendChild(renderMentalitySection(sideState, onMentalityChange))
   for (const field of SLIDER_FIELDS) body.appendChild(renderSliderSection(sideState, field))
 
+  // 홈 지침 다음엔 원정 스쿼드로, 원정 지침 다음엔 바로 경기로 — PRD의 화면 흐름
+  // (스쿼드(홈)->지침(홈)->스쿼드(원정)->지침(원정)->매치)을 그대로 따라간다.
+  // 이 버튼이 없으면 홈 팀을 다 구성한 사용자가 원정 팀으로 갈 방법이 URL 해시를
+  // 직접 고치는 것뿐이라 실질적으로 막힌다(실제 플레이스루로 확인한 문제).
+  const nextBtn = document.createElement('button')
+  nextBtn.type = 'button'
+  nextBtn.className = 'chip chip--active'
+  if (side === 'home') {
+    nextBtn.textContent = '다음: 원정 스쿼드 구성 →'
+    nextBtn.addEventListener('click', () => navigate('/squad/away'))
+  } else {
+    nextBtn.textContent = '경기 시작 →'
+    nextBtn.addEventListener('click', () => navigate('/match'))
+  }
+  body.appendChild(nextBtn)
+
   screen.append(topbar, body)
   mountEl.appendChild(screen)
 }
