@@ -3,8 +3,9 @@ vhk_format: 1
 type: goal
 id: 2
 title: 시뮬레이션 엔진 코어 + 몬테카를로 검증 게이트
-status: NOT_STARTED
+status: DONE
 priority: P0
+completed: 2026-07-02
 ---
 
 # Goal 2: 시뮬레이션 엔진 코어 + 몬테카를로 검증 게이트

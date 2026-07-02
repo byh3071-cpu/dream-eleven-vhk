@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "objective": "Goal 1: 선수 스키마 + 픽스처 데이터 + 포메이션 — player-schema/players.db/formations/teamStrength",
+  "objective": "Goal 2: 시뮬레이션 엔진 코어 + 몬테카를로 검증 게이트 — rng/zones/duel/traits/stamina/possession/engine",
   "scope": [
-    "src/data/**,src/sim/teamStrength.js,tests/data/**,tests/sim/teamStrength.test.js"
+    "src/sim/**,tests/sim/**"
   ],
   "forbidden": [
-    "src/ui/**"
+    "src/ui/**,src/data/**"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-02T11:30:54.132Z"
+  "updatedAt": "2026-07-02T11:37:26.493Z"
 }
