@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>선수 카드 실데이터 검증 (임시 — 검증 후 삭제 예정)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  :root {
+    --bg-primary: #0b0e14; --bg-panel: #151a24; --bg-panel-raised: #1c2230;
+    --accent-gold: #f0b429; --accent-gold-bright: #ffd873; --accent-silver: #9ca3af;
+    --text-primary: #f5f5f0; --text-dim: #8b93a7; --border-subtle: #262d3d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-primary); color: var(--text-primary); font-family: 'Pretendard', -apple-system, sans-serif; padding: 40px 24px; }
+  .note { max-width: 1000px; margin: 0 auto 24px; padding: 12px 16px; background: var(--bg-panel); border: 1px dashed var(--border-subtle); border-radius: 6px; color: var(--text-dim); font-size: 13px; line-height: 1.7; }
+  .note b { color: var(--text-primary); }
+  .card-row { max-width: 1000px; margin: 0 auto; display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .player-card {
+    width: 158px; background: linear-gradient(165deg, var(--bg-panel-raised) 0%, var(--bg-panel) 78%);
+    border: 1px solid var(--border-subtle);
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    padding: 14px 12px 16px; position: relative;
+  }
+  .player-card__top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .player-card__rating { font-size: 24px; font-weight: 800; color: var(--accent-gold-bright); line-height: 1; }
+  .player-card__pos { font-size: 11px; font-weight: 700; color: var(--text-dim); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 2px 6px; margin-top: 4px; }
+  .player-card__era { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--bg-primary); background: var(--accent-silver); border-radius: 3px; padding: 2px 5px; }
+  .player-card__era--legend { background: var(--accent-gold); }
+  .player-card__badge { width: 76px; height: 76px; margin: 4px auto 8px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .player-card__badge svg.hex { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .player-card__badge-name { position: relative; font-weight: 800; font-size: 19px; color: var(--text-primary); letter-spacing: -0.02em; text-align: center; line-height: 1.05; padding: 0 4px; word-break: keep-all; }
+  .player-card__nickname { text-align: center; font-size: 11.5px; font-weight: 600; color: var(--text-primary); border-top: 1px solid var(--border-subtle); padding-top: 7px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-card__meta { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+  .player-card__meta-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); }
+  .player-card__meta-row .lead { width: 15px; height: 11px; flex-shrink: 0; }
+  .player-card__meta-row .lead.flag { border-radius: 1px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,0.15); }
+  .player-card__meta-row .lead.flag img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .broken { outline: 2px solid #e05d5d; }
+</style>
+</head>
+<body>
+  <div class="note">
+    <b>임시 검증 페이지</b> — 실제 <code>players.db.js</code> 데이터 + <code>assets/flags/</code>의
+    실제 벡터 파일을 그대로 불러온다(손으로 다시 베낀 목업 아님). 손으로 단순화한 4개국
+    (브라질/크로아티아/포르투갈/스페인)이 실제로 깨짐 없이 보이는지, 잉글랜드가 유니언잭이
+    아니라 세인트 조지 크로스로 나오는지 확인용. <b>확인 끝나면 이 파일은 지울 예정.</b>
+    <br><br>
+    <code>npx serve . -l 5500</code>로 띄운 다음 <code>http://localhost:5500/verify-cards.html</code>로
+    열어줘 (file://로 열면 ES 모듈 import가 안 됨).
+  </div>
+
+  <div id="cards" class="card-row"></div>
+
+  <script type="module">
+    import { PLAYERS } from './src/data/players.db.js'
+    import { NATIONALITY_NAMES } from './src/data/player-schema.js'
+
+    // 스트레스 테스트 대상: 손으로 단순화한 4개국(br/hr/pt/es) + gb-eng 교체 확인 +
+    // 긴 이름 줄바꿈 재확인 + 짧은 이름 기본 케이스.
+    const targetIds = [
+      'ronaldinho',  // br
+      'modric',      // hr
+      'ronaldo_cr7', // pt
+      'ramos',       // es
+      'beckham',     // gb-eng (세인트 조지 크로스여야 함, 유니언잭 아님)
+      'son_heungmin',// kr
+      'beckenbauer', // 긴 이름 줄바꿈 케이스
+      'messi',       // 기본 케이스
+    ]
+
+    function overall(stats) {
+      const w = { pace: 1, shooting: 1.2, passing: 1.2, dribbling: 1.2, defending: 0.8, physical: 0.8 }
+      const sum = Object.keys(w).reduce((s, k) => s + stats[k] * w[k], 0)
+      const norm = Object.values(w).reduce((s, v) => s + v, 0)
+      return Math.round(sum / norm)
+    }
+
+    const container = document.getElementById('cards')
+
+    for (const id of targetIds) {
+      const p = PLAYERS.find((x) => x.id === id)
+      if (!p) {
+        const missing = document.createElement('div')
+        missing.className = 'player-card broken'
+        missing.textContent = `선수 없음: ${id}`
+        container.appendChild(missing)
+        continue
+      }
+
+      const shortName = p.name.split(' ').pop().length <= 4 ? p.name.split(' ').pop() : p.name.slice(-3)
+      const badgeText = shortName.length > 4 ? shortName.slice(0, 2) + '\n' + shortName.slice(2) : shortName
+      const borderColor = p.era === 'legend' ? '#f0b429' : '#9ca3af'
+
+      const card = document.createElement('div')
+      card.className = 'player-card'
+
+      const top = document.createElement('div')
+      top.className = 'player-card__top'
+      const left = document.createElement('div')
+      const rating = document.createElement('div')
+      rating.className = 'player-card__rating'
+      rating.textContent = String(overall(p.stats))
+      const pos = document.createElement('div')
+      pos.className = 'player-card__pos'
+      pos.textContent = p.positions[0]
+      left.append(rating, pos)
+      const era = document.createElement('div')
+      era.className = 'player-card__era' + (p.era === 'legend' ? ' player-card__era--legend' : '')
+      era.textContent = p.era === 'legend' ? 'LEGEND' : 'ACTIVE'
+      top.append(left, era)
+
+      const badge = document.createElement('div')
+      badge.className = 'player-card__badge'
+      badge.innerHTML = `<svg class="hex" viewBox="0 0 100 100"><polygon points="50,3 93,25 93,75 50,97 7,75 7,25" fill="#0b0e14" stroke="${borderColor}" stroke-width="2"/></svg>`
+      const badgeName = document.createElement('span')
+      badgeName.className = 'player-card__badge-name'
+      badgeName.style.fontSize = badgeText.length > 3 ? '14px' : '19px'
+      badgeText.split('\n').forEach((line, i) => {
+        if (i > 0) badgeName.appendChild(document.createElement('br'))
+        badgeName.appendChild(document.createTextNode(line))
+      })
+      badge.appendChild(badgeName)
+
+      const nickname = document.createElement('div')
+      nickname.className = 'player-card__nickname'
+      nickname.textContent = p.name
+
+      const meta = document.createElement('div')
+      meta.className = 'player-card__meta'
+
+      const natRow = document.createElement('div')
+      natRow.className = 'player-card__meta-row'
+      const flagWrap = document.createElement('span')
+      flagWrap.className = 'lead flag'
+      const flagImg = document.createElement('img')
+      flagImg.src = `./assets/flags/${p.nationality}.svg`
+      flagImg.alt = p.nationality
+      flagImg.onerror = () => { flagWrap.classList.add('broken'); flagWrap.title = '국기 파일 로드 실패: ' + flagImg.src }
+      flagWrap.appendChild(flagImg)
+      const natText = document.createElement('span')
+      natText.textContent = NATIONALITY_NAMES[p.nationality] ?? `(미등록 코드: ${p.nationality})`
+      natRow.append(flagWrap, natText)
+
+      const clubRow = document.createElement('div')
+      clubRow.className = 'player-card__meta-row'
+      const clubLead = document.createElement('span')
+      clubLead.className = 'lead'
+      const clubText = document.createElement('span')
+      clubText.textContent = p.club
+      clubRow.append(clubLead, clubText)
+
+      meta.append(natRow, clubRow)
+      card.append(top, badge, nickname, meta)
+      container.appendChild(card)
+    }
+  </script>
+</body>
+</html>

@@ -106,7 +106,7 @@ export const PLAYERS = [
   },
   {
     id: 'beckham', name: '데이비드 베컴', era: 'legend', age: 29,
-    nationality: 'gb', club: '맨체스터 유나이티드',
+    nationality: 'gb-eng', club: '맨체스터 유나이티드',
     positions: ['RM'],
     stats: { pace: 78, shooting: 82, passing: 90, dribbling: 76, defending: 55, physical: 68 },
     traits: ['right_footed', 'free_kick_specialist'],
@@ -318,21 +318,21 @@ export const PLAYERS = [
   },
   {
     id: 'lampard', name: '프랭크 램파드', era: 'legend', age: 28,
-    nationality: 'gb', club: '첼시',
+    nationality: 'gb-eng', club: '첼시',
     positions: ['CM'],
     stats: { pace: 72, shooting: 88, passing: 84, dribbling: 78, defending: 62, physical: 82 },
     traits: ['poacher'],
   },
   {
     id: 'gerrard', name: '스티븐 제라드', era: 'legend', age: 25,
-    nationality: 'gb', club: '리버풀',
+    nationality: 'gb-eng', club: '리버풀',
     positions: ['CM', 'AM'],
     stats: { pace: 78, shooting: 87, passing: 85, dribbling: 80, defending: 68, physical: 84 },
     traits: ['playmaker_vision'],
   },
   {
     id: 'scholes', name: '폴 스콜스', era: 'legend', age: 26,
-    nationality: 'gb', club: '맨체스터 유나이티드',
+    nationality: 'gb-eng', club: '맨체스터 유나이티드',
     positions: ['CM'],
     stats: { pace: 64, shooting: 85, passing: 91, dribbling: 78, defending: 55, physical: 70 },
     traits: ['playmaker_vision'],
@@ -459,7 +459,7 @@ export const PLAYERS = [
   },
   {
     id: 'ashley_cole', name: '애슐리 콜', era: 'legend', age: 24,
-    nationality: 'gb', club: '아스널',
+    nationality: 'gb-eng', club: '아스널',
     positions: ['LB'],
     stats: { pace: 88, shooting: 55, passing: 74, dribbling: 76, defending: 88, physical: 76 },
     traits: ['tackle_specialist'],
@@ -487,7 +487,7 @@ export const PLAYERS = [
   },
   {
     id: 'gary_neville', name: '개리 네빌', era: 'legend', age: 26,
-    nationality: 'gb', club: '맨체스터 유나이티드',
+    nationality: 'gb-eng', club: '맨체스터 유나이티드',
     positions: ['RB'],
     stats: { pace: 74, shooting: 45, passing: 76, dribbling: 62, defending: 82, physical: 78 },
     traits: ['tackle_specialist'],

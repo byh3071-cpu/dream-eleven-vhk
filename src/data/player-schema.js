@@ -33,7 +33,7 @@ export const NATIONALITY_NAMES = Object.freeze({
   pt: '포르투갈',
   br: '브라질',
   ar: '아르헨티나',
-  gb: '잉글랜드',
+  'gb-eng': '잉글랜드',
   hr: '크로아티아',
   ru: '러시아',
   ua: '우크라이나',
