@@ -3,7 +3,9 @@
 원본: [lipis/flag-icons](https://github.com/lipis/flag-icons) (MIT License)
 경로: `flags/4x3/<ISO 3166-1 alpha-2 코드>.svg`
 
-fr, de, it, nl, ru, ua, hu, cz, gb, ar, kr는 원본 SVG를 그대로(문자 단위로) 가져왔다.
+fr, de, it, nl, ru, ua, hu, cz, gb-eng, gb-wls, ar, kr는 원본 SVG를 그대로(문자 단위로) 가져왔다.
+(gb-wls, 웨일스 드래곤은 SVG 자체가 매우 정교하지만 fetch 시 잘림 없이 완전하게 받아져서
+— 앞의 4개처럼 토큰 제한으로 잘린 경우가 아니라 — 손대지 않고 그대로 썼다.)
 
 다음 4개는 카드 배지 크기(15×11px)에서 어차피 안 보이는 초미세 디테일(문장(紋章) 속
 별자리 점, 정교한 체크무늬 방패, 장식 테두리 패턴 등)만 제거하고 색상·비율·핵심 형태는

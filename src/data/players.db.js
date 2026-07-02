@@ -499,6 +499,28 @@ export const PLAYERS = [
     stats: { pace: 92, shooting: 62, passing: 78, dribbling: 78, defending: 72, physical: 68 },
     traits: [],
   },
+  // LM 보강 (2026-07-03) — 전담 LM이 이니에스타/리베리/네드베드 3명뿐이라 얇았음.
+  {
+    id: 'giggs', name: '라이언 긱스', era: 'legend', age: 27,
+    nationality: 'gb-wls', club: '맨체스터 유나이티드',
+    positions: ['LM', 'LW'],
+    stats: { pace: 90, shooting: 78, passing: 82, dribbling: 93, defending: 35, physical: 72 },
+    traits: ['left_footed', 'dribbler'],
+  },
+  {
+    id: 'rivelino', name: '히벨리누', era: 'legend', age: 24,
+    nationality: 'br', club: '코린치안스',
+    positions: ['LM', 'AM'],
+    stats: { pace: 78, shooting: 89, passing: 85, dribbling: 90, defending: 40, physical: 70 },
+    traits: ['left_footed', 'free_kick_specialist', 'dribbler'],
+  },
+  {
+    id: 'pires', name: '호베르 피레스', era: 'legend', age: 30,
+    nationality: 'fr', club: '아스날',
+    positions: ['LM', 'LW'],
+    stats: { pace: 80, shooting: 82, passing: 85, dribbling: 86, defending: 45, physical: 68 },
+    traits: ['left_footed', 'playmaker_vision'],
+  },
 ]
 
 export function findPlayer(id) {
