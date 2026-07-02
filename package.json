@@ -1,0 +1,19 @@
+{
+  "name": "dream-eleven-vhk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "레전드/현역 축구선수로 베스트일레븐을 구성해 감독처럼 포메이션·전술을 짜고 2D로 경기를 시뮬레이션하는 드림매치 게임",
+  "scripts": {
+    "start": "npx serve . -l 5500",
+    "lint": "eslint .",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:run": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "jest": "^29.7.0"
+  }
+}

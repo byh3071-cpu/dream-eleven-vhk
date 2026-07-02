@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "objective": "Goal 0: 프로젝트 스캐폴딩 — package.json/eslint/vercel.json/index.html 셸/라우터",
+  "scope": [
+    "package.json,eslint.config.js,vercel.json,index.html,css/**,src/main.js,src/router.js"
+  ],
+  "forbidden": [
+    "src/sim/**,src/data/**"
+  ],
+  "createdAt": "2026-07-02T11:18:49.253Z",
+  "updatedAt": "2026-07-02T11:23:29.103Z"
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "vhk": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\백요한\\AppData\\Roaming\\npm\\node_modules\\@byh3071\\vhk\\dist\\mcp\\index.js"
+      ]
+    }
+  }
+}
