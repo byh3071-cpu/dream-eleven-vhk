@@ -8,7 +8,8 @@ export function renderPitchLines() {
   svg.setAttribute('viewBox', '0 0 100 100')
   svg.setAttribute('preserveAspectRatio', 'none')
 
-  const stroke = 'rgba(240, 244, 240, 0.35)'
+  // var() 문자열 패스스루 — 색의 소스는 tokens.css 하나 (docs/DESIGN.md JS 색 정책)
+  const stroke = 'var(--pitch-line)'
   const addShape = (tag, attrs) => {
     const el = document.createElementNS(svgNS, tag)
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)

@@ -516,7 +516,7 @@ export const PLAYERS = [
   },
   {
     id: 'pires', name: '호베르 피레스', era: 'legend', age: 30,
-    nationality: 'fr', club: '아스날',
+    nationality: 'fr', club: '아스널',
     positions: ['LM', 'LW'],
     stats: { pace: 80, shooting: 82, passing: 85, dribbling: 86, defending: 45, physical: 68 },
     traits: ['left_footed', 'playmaker_vision'],

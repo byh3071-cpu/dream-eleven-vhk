@@ -25,7 +25,10 @@ function fontSizeFor(size, lines) {
 
 // player: { name, era }. size: 'lg'(108px, 카드) | 'sm'(44px, 필드 슬롯)
 export function createPlayerBadge(player, { size = 'lg' } = {}) {
-  const borderColor = player.era === 'legend' ? '#f0b429' : '#9ca3af'
+  // 색은 var() 문자열 패스스루 — SVG 속성도 CSS 변수를 해석한다(squadBuilder의 빈 슬롯
+  // 뱃지가 이미 이 패턴으로 동작 중). CSS(tokens.css)가 색의 유일한 소스로 유지된다.
+  // getComputedStyle로 실값을 읽는 헬퍼는 Canvas 렌더러 도입 시에만(docs/DESIGN.md).
+  const borderColor = player.era === 'legend' ? 'var(--accent-gold)' : 'var(--accent-silver)'
   const lines = badgeLinesFor(player.name)
 
   const badge = document.createElement('div')
@@ -37,7 +40,7 @@ export function createPlayerBadge(player, { size = 'lg' } = {}) {
   svg.setAttribute('viewBox', '0 0 100 100')
   const polygon = document.createElementNS(svgNS, 'polygon')
   polygon.setAttribute('points', '50,3 93,25 93,75 50,97 7,75 7,25')
-  polygon.setAttribute('fill', '#0b0e14')
+  polygon.setAttribute('fill', 'var(--bg-primary)')
   polygon.setAttribute('stroke', borderColor)
   polygon.setAttribute('stroke-width', '2')
   svg.appendChild(polygon)
