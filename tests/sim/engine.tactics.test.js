@@ -64,7 +64,8 @@ describe('전술 지침 회귀 테스트 (Goal 3 — goals/3-tactics.md)', () =>
     const fast = runSeries(75, 75, { tempo: 1.0 }, { tempo: 1.0 }, TRIALS)
     const slow = runSeries(75, 75, { tempo: 0.0 }, { tempo: 0.0 }, TRIALS)
     console.log(`[템포] 빠름=${fast.avgEvents.toFixed(1)}건 vs 느림=${slow.avgEvents.toFixed(1)}건`)
-    // 실측: 빠름 32.0건 vs 느림 26.0건 (격차 6.0, 마진 3.0 확보)
+    // 실측(M8 볼경로 확장 후 — 체인당 progression 경유 이벤트가 딸려서 건수 자체가 전반적으로
+    // 늘어났다): 빠름 112.3건 vs 느림 91.8건 (격차 20.5, 마진 3.0은 그대로 여유 있게 통과)
     expect(fast.avgEvents).toBeGreaterThan(slow.avgEvents + 3)
   })
 

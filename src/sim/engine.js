@@ -21,7 +21,9 @@ function buildStats(events) {
   }
   for (const evt of events) {
     const teamStats = stats[evt.team]
-    teamStats.possessions++
+    // progression은 한 체인 안에 여러 개가 딸려오는 "경유" 이벤트라(possession.js 참고)
+    // 체인 단위로 세는 possessions에는 안 들어간다 — 체인당 정확히 1개인 종료 이벤트만 센다.
+    if (evt.type !== 'progression') teamStats.possessions++
     if (evt.type === 'shot_off_target') teamStats.shots++
     if (evt.type === 'shot_saved') { teamStats.shots++; teamStats.shotsOnTarget++ }
     if (evt.type === 'goal') { teamStats.shots++; teamStats.shotsOnTarget++; teamStats.goals++ }

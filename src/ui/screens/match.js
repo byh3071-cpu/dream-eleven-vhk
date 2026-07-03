@@ -150,6 +150,15 @@ function clearActiveRaf() {
 }
 
 const BASE_DELAY_MS = 550
+// progression(볼이 실제로 거쳐가는 경유 밴드 — possession.js 참고)은 골/슈팅 같은 결정적
+// 이벤트보다 훨씬 짧게 보여줘야 "여러 지점을 순간이동"이 아니라 "지나간다"처럼 보인다.
+// css/match-view.css의 .match__ball transition(0.15s)보다는 길게 잡아야 이동이 끝나고
+// 다음 이동이 시작된다 — 그보다 짧으면 transition이 매번 중간에 끊긴다.
+const PROGRESSION_DELAY_MS = 180
+
+function delayFor(event) {
+  return (event.type === 'progression' ? PROGRESSION_DELAY_MS : BASE_DELAY_MS)
+}
 
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를
 // "재생"만 하는 것(사전계산 후 리플레이 아키텍처). 매 tick마다 전체 화면을 다시 그리면
@@ -257,9 +266,10 @@ function createPlaybackController(events, refs) {
       onPhaseChange('done')
       return
     }
-    applyEvent(events[index])
+    const event = events[index]
+    applyEvent(event)
     index++
-    activeTimerId = setTimeout(tick, BASE_DELAY_MS / speed)
+    activeTimerId = setTimeout(tick, delayFor(event) / speed)
   }
 
   function resetVisuals() {

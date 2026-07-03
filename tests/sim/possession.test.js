@@ -4,7 +4,7 @@ import { createRng } from '../../src/sim/rng.js'
 import { findPlayer } from '../../src/data/players.db.js'
 
 const VALID_EVENT_TYPES = new Set([
-  'turnover_buildup', 'shot_off_target', 'shot_saved', 'goal',
+  'progression', 'turnover_buildup', 'shot_off_target', 'shot_saved', 'goal',
 ])
 
 function buildSquad11(ids) {
@@ -32,26 +32,32 @@ describe('resolveChain', () => {
     }
   })
 
-  test('actorId는 항상 공격측(possessing) 스쿼드의 선수다', () => {
+  // resolveChain은 이제 체인당 이벤트 1개가 아니라 "경유(progression) 여러 개 + 종료
+  // 이벤트 1개"를 반환한다(possession.js 참고) — progression의 actorId도 항상 창조자
+  // (possessing 소속)라 turnover_buildup만 빼면 전부 다 이 불변식을 만족해야 한다.
+  test('actorId는 항상 공격측(possessing) 스쿼드의 선수다(turnover_buildup 제외)', () => {
     const rng = createRng(2)
     const possessing = { squad11: homeSquad, stamina: initialStaminaState(homeSquad), tactics: {} }
     const defending = { squad11: awaySquad, stamina: initialStaminaState(awaySquad), tactics: {} }
     const homeIdSet = new Set(homeIds)
     for (let i = 0; i < 50; i++) {
-      const [evt] = resolveChain({ possessing, defending, teamLabel: 'A', minute: 10, rng })
-      if (evt.type === 'turnover_buildup') continue // 이 타입은 수비측 선수가 actor
-      expect(homeIdSet.has(evt.actorId)).toBe(true)
+      const events = resolveChain({ possessing, defending, teamLabel: 'A', minute: 10, rng })
+      for (const evt of events) {
+        if (evt.type === 'turnover_buildup') continue // 이 타입은 수비측 선수가 actor
+        expect(homeIdSet.has(evt.actorId)).toBe(true)
+      }
     }
   })
 
+  // goal은 항상 체인의 마지막 이벤트로만 나온다(progression은 종료 이벤트가 아님).
   test('많이 반복하면 골이 한 번 이상 발생한다(확률적으로 0%가 아님을 확인)', () => {
     const rng = createRng(3)
     const possessing = { squad11: homeSquad, stamina: initialStaminaState(homeSquad), tactics: {} }
     const defending = { squad11: awaySquad, stamina: initialStaminaState(awaySquad), tactics: {} }
     let goals = 0
     for (let i = 0; i < 300; i++) {
-      const [evt] = resolveChain({ possessing, defending, teamLabel: 'A', minute: 10, rng })
-      if (evt.type === 'goal') goals++
+      const events = resolveChain({ possessing, defending, teamLabel: 'A', minute: 10, rng })
+      if (events.at(-1).type === 'goal') goals++
     }
     expect(goals).toBeGreaterThan(0)
   })

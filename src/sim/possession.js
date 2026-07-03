@@ -51,6 +51,18 @@ function makeEvent(type, fields) {
   return { type, ...fields }
 }
 
+// 볼이 실제로 거쳐가는 밴드(BANDS 인덱스)를 순서대로 이어주는 "경유" 이벤트 — 화면상
+// 렌더러가 매 이벤트마다 한 지점으로만 순간이동하던 것을 여러 개의 가까운 지점으로
+// 쪼개서 더 연속적으로 보이게 만든다. duel/rng를 새로 굴리지 않고 이미 정해진
+// 창조 단계 결과(성공/실패)를 "얼마나 촘촘하게 보여줄지"만 바꾸는 순수 서술용 이벤트라
+// 승부 확률에는 전혀 영향을 안 준다 — 몬테카를로 게이트가 그대로 통과해야 하는 이유.
+function progressionEvent(minute, teamLabel, fromBandIdx, toBandIdx, channel, actorId) {
+  return makeEvent('progression', {
+    minute, team: teamLabel, actorId,
+    zoneFrom: BANDS[fromBandIdx], zoneTo: BANDS[toBandIdx], channel,
+  })
+}
+
 function progressionScore(stats) {
   return (stats.passing + stats.dribbling) / 2
 }
@@ -83,11 +95,23 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
 
   const createChance = successChance(createScore, defendScore, divisor ?? CREATE_DIVISOR)
   if (!rollSuccess(rng, createChance)) {
-    return [makeEvent('turnover_buildup', {
-      minute, team: teamLabel, actorId: presser.player.id,
-      zoneFrom: BANDS[0], zoneTo: BANDS[3], channel,
-    })]
+    // 창조 실패 -> 자기 진영에서 파이널서드 문턱까지는 전진했다가 거기서 끊긴다.
+    return [
+      progressionEvent(minute, teamLabel, 0, 1, channel, creator.player.id),
+      progressionEvent(minute, teamLabel, 1, 2, channel, creator.player.id),
+      makeEvent('turnover_buildup', {
+        minute, team: teamLabel, actorId: presser.player.id,
+        zoneFrom: BANDS[2], zoneTo: BANDS[3], channel,
+      }),
+    ]
   }
+
+  // 창조 성공 -> 자기 진영에서 파이널서드까지 실제로 전진하는 경유 지점을 남긴다.
+  const buildupProgression = [
+    progressionEvent(minute, teamLabel, 0, 1, channel, creator.player.id),
+    progressionEvent(minute, teamLabel, 1, 2, channel, creator.player.id),
+    progressionEvent(minute, teamLabel, 2, 3, channel, creator.player.id),
+  ]
 
   // 2단계 "마무리" — 파이널서드에서 박스 안으로, 슈팅까지.
   const shooter = pickActor(possessing.squad11, 4, channel, 'shooting', rng)
@@ -107,7 +131,7 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
   const rawFinishChance = successChance(shotQuality, saveScore, divisor ?? FINISH_DIVISOR)
   const goalChance = rawFinishChance * FINISH_BASELINE_SCALE
   if (rollSuccess(rng, goalChance)) {
-    return [makeEvent('goal', {
+    return [...buildupProgression, makeEvent('goal', {
       minute, team: teamLabel, actorId: shooter.player.id, assistId: assister.player.id,
       zoneFrom: BANDS[3], zoneTo: BANDS[4], channel,
     })]
@@ -119,7 +143,7 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
     zoneFrom: BANDS[3], zoneTo: BANDS[4], channel,
   }
   if (outcomeType === 'shot_saved') fields.gkId = gk.player.id
-  return [makeEvent(outcomeType, fields)]
+  return [...buildupProgression, makeEvent(outcomeType, fields)]
 }
 
 export function decidePossession(midfieldRatingA, midfieldRatingB, rng) {

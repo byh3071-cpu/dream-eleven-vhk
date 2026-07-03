@@ -46,7 +46,11 @@
   background: var(--accent-gold-bright);
   box-shadow: 0 0 6px 1px rgba(255, 216, 115, 0.7);
   transform: translate(-50%, -50%);
-  transition: left 0.5s ease, top 0.5s ease;
+  /* 0.5s이던 시절엔 이벤트 간격이 550ms라 다음 이벤트 직전에 도착하는 정도로 맞았는데,
+     M8 볼경로 확장 후 progression 이벤트 캐던스(180ms)가 훨씬 짧아져서 0.5s를 그대로 두면
+     transition이 매번 중간에 끊기고 처음의 느린 구간부터 재출발 — 목표에 도달을 못 하고
+     계속 뒤처지며 기어가는 것처럼 보인다(오히려 순간이동보다 나쁨). 캐던스보다 짧게 유지. */
+  transition: left 0.15s ease, top 0.15s ease;
 }
 
 .match__scoreboard {
