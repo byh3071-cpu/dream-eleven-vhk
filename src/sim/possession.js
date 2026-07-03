@@ -43,8 +43,11 @@ const FINISH_BASELINE_SCALE = 0.39
 const OUTFIELD_POOL_SIZE = 4
 
 // 서술 파라미터 — 승부와 무관, "몇 개의 홉으로 보여줄지"만 좌우.
-const LATERAL_PASS_CHANCE = 0.3 // 밴드 2(중원)에서 횡패스 한 번 끼워넣을 확률
 const TACKLE_NARRATION_CHANCE = 0.5 // 턴오버를 태클로 서술할 확률(나머지는 인터셉트)
+// 티키타카(중원 원터치 교환): 템포가 낮을수록(참을성 있는 빌드업) 잦아진다 —
+// 전술 슬라이더가 승률만이 아니라 "경기가 어떻게 보이는가"까지 바꾸는 연결점.
+const EXCHANGE_BASE_CHANCE = 0.25
+const EXCHANGE_TEMPO_SPAN = 0.35 // tempo 0(느림) → +0.35, tempo 1(빠름) → +0
 
 function outfieldEntries(squad11) {
   return squad11.filter(({ player }) => !player.positions.includes('GK'))
@@ -167,14 +170,19 @@ export function narrateChain(outcome, possessing, narrationRng) {
   advance(1, pickActor(possessing.squad11, 1, channel, 'passing', narrationRng))
   advance(2, pickActor(possessing.squad11, 2, channel, 'passing', narrationRng))
 
-  // 중원에서 낮은 확률로 횡패스 한 번(같은 밴드 안) — 서술 다양성용.
-  if (narrationRng() < LATERAL_PASS_CHANCE) {
-    const mate = pickActor(possessing.squad11, 2, channel, 'passing', narrationRng)
-    if (mate.player.id !== holder.player.id) {
+  // 티키타카: 중원에서 원터치 교환 2~3회(같은 밴드 안, style 'short' — 렌더러가 빠르게
+  // 페이싱). 삼각 패스가 자연스럽게 나온다(A→B→C 또는 A→B→A 리턴).
+  const tempo = possessing.tactics?.tempo ?? 0.5
+  const exchangeChance = EXCHANGE_BASE_CHANCE + (1 - tempo) * EXCHANGE_TEMPO_SPAN
+  if (narrationRng() < exchangeChance) {
+    const hops = narrationRng() < 0.4 ? 3 : 2
+    for (let i = 0; i < hops; i++) {
+      const mate = pickActor(possessing.squad11, 2, channel, 'passing', narrationRng)
+      if (mate.player.id === holder.player.id) continue
       events.push({
         type: 'pass', ...base, fromId: holder.player.id, toId: mate.player.id,
         zoneFrom: BANDS[2], zoneTo: BANDS[2], channelFrom: channel, channelTo: channel,
-        style: 'ground',
+        style: 'short',
       })
       holder = mate
     }

@@ -114,7 +114,11 @@ function renderStaticSlot(entry, team, steeringRefs) {
   el.appendChild(name)
   if (steeringRefs) {
     steeringRefs.push({
-      el, basePos, team, playerId: entry.player.id, pace: entry.player.stats.pace,
+      el, basePos, team, playerId: entry.player.id,
+      pace: entry.player.stats.pace,
+      dribbling: entry.player.stats.dribbling,
+      isGK: entry.player.positions.includes('GK'),
+      idlePhase: steeringRefs.length * 1.7, // 대기 흔들림 위상 분산(전원이 동기화되면 부자연)
       current: { ...basePos }, velocity: { left: 0, top: 0 },
     })
   }
@@ -167,12 +171,14 @@ function clearActiveRaf() {
 // 보유자가 끌고 가는 그림이라 간격을 길게 준다.
 const DELAY_MS = {
   pass: 420, carry: 700, turnover_buildup: 550,
-  shot_saved: 700, shot_off_target: 700, goal: 950,
+  shot_saved: 700, shot_off_target: 700, goal: 1500, // 골은 셀레브레이션이 읽힐 시간
 }
+const SHORT_PASS_DELAY_MS = 260 // 티키타카(style 'short') — 원터치 리듬
 const FLIGHT_RATIO = 0.72
 const CARRY_TRANSFER_MS = 160 // carry 시작 시 볼이 보유자 발밑으로 붙는 짧은 비행
 
 function delayFor(event) {
+  if (event.type === 'pass' && event.style === 'short') return SHORT_PASS_DELAY_MS
   return DELAY_MS[event.type] ?? 550
 }
 
@@ -187,6 +193,16 @@ function goalMouthOf(team) {
   return { left: 50, top: screenTop(99, team) }
 }
 
+// 필드 위 플래시 오버레이(골/카드). CSS 애니메이션이 끝나면 스스로 제거되므로
+// 재생 루프/언마운트와 수명이 얽히지 않는다.
+function spawnFlash(pitchEl, text, variant) {
+  const flash = document.createElement('div')
+  flash.className = `match__flash match__flash--${variant}`
+  flash.textContent = text
+  flash.addEventListener('animationend', () => flash.remove())
+  pitchEl.appendChild(flash)
+}
+
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를
 // "재생"만 하는 것(사전계산 후 리플레이 아키텍처). 매 tick마다 전체 화면을 다시 그리면
 // 검색창/슬라이더에서 겪은 것과 같은 문제(진행 중이던 애니메이션/포커스가 DOM 재생성으로
@@ -196,7 +212,7 @@ function goalMouthOf(team) {
 // 묶는다. 다시보기는 이 events 배열을 그대로 재사용(재시뮬레이션 없음), 재대결은 호출부가
 // simulateMatch를 새로 돌려 새 컨트롤러를 만든다.
 function createPlaybackController(events, refs) {
-  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange, pitchEl, steeringRefs } = refs
+  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange, pitchEl, steeringRefs, tacticsBySide } = refs
   let index = 0
   let speed = 1
   const score = { home: 0, away: 0 }
@@ -214,6 +230,11 @@ function createPlaybackController(events, refs) {
   let ballScreenPos = { left: 50, top: 50 }
   // 현재 이벤트의 주역만 이벤트 지점으로 강풀 — 나머지 20~21명은 팀 셰이프 유지.
   const pullOverrides = new Map()
+  // 드리블 플레어: weave(잔발 지그재그, dribbling 비례 진폭) / roulette(마르세유턴 —
+  // 볼이 보유자를 한 바퀴 도는 오빗). 렌더 전용이라 rng 금지 — 이벤트 값으로 결정론 트리거.
+  let activeFlair = null
+  // 골 셀레브레이션: 득점팀 필드플레이어가 득점자에게 수렴.
+  let celebration = null
 
   const refsById = new Map(steeringRefs.map((ref) => [ref.playerId, ref]))
   const resolveTokenPos = (playerId) => {
@@ -228,7 +249,13 @@ function createPlaybackController(events, refs) {
   }
 
   function renderBall() {
-    const pos = ballPosition(ballState, resolveTokenPos)
+    let pos = ballPosition(ballState, resolveTokenPos)
+    // 마르세유턴: held 상태에서 볼이 보유자를 한 바퀴 돈다(오빗 오프셋).
+    if (pos && activeFlair?.type === 'roulette' && ballState.mode === 'held'
+        && ballState.holderId === activeFlair.actorId) {
+      const theta = (activeFlair.elapsedMs / activeFlair.durationMs) * Math.PI * 2
+      pos = { left: pos.left + Math.cos(theta) * 1.4, top: pos.top + Math.sin(theta) * 1.4 }
+    }
     if (pos) ballScreenPos = pos // null(토큰 미해결)이면 직전 위치 유지
     ballEl.style.left = `${ballScreenPos.left}%`
     ballEl.style.top = `${ballScreenPos.top}%`
@@ -248,15 +275,46 @@ function createPlaybackController(events, refs) {
     if (!document.contains(pitchEl)) { activeRafId = null; return }
     const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
     lastFrameTime = now
+
+    const frameMs = deltaSeconds * 1000 * speed
+    if (activeFlair) {
+      activeFlair.elapsedMs += frameMs
+      if (activeFlair.elapsedMs >= activeFlair.durationMs) activeFlair = null
+    }
+    if (celebration) {
+      celebration.remainingMs -= frameMs
+      if (celebration.remainingMs <= 0) celebration = null
+    }
+    const scorerRef = celebration ? refsById.get(celebration.scorerId) : null
+
     // 스프링 적분은 deltaSeconds가 크면(프레임 드랍 등) 발산할 수 있어 작은 서브스텝으로
     // 쪼갠다. target은 프레임당 한 번만 계산, 적분만 반복.
     const substeps = deltaSeconds === 0 ? 0 : Math.ceil(deltaSeconds / MAX_SUBSTEP)
     const subDt = substeps === 0 ? 0 : deltaSeconds / substeps
     for (const ref of steeringRefs) {
-      const override = pullOverrides.get(ref.playerId)
-      const target = override
-        ? computeOverrideTarget(ref.basePos, override)
-        : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
+      let target
+      if (scorerRef && ref.team === celebration.team && !ref.isGK && ref.playerId !== celebration.scorerId) {
+        // 셀레브레이션: 득점팀 필드플레이어가 득점자의 실시간 위치로 달려간다.
+        target = { ...scorerRef.current }
+      } else {
+        const override = pullOverrides.get(ref.playerId)
+        target = override
+          ? computeOverrideTarget(ref.basePos, override)
+          : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
+        // 대기 흔들림 — 전원이 완전 정지해 보이는 문제 해소(위상 분산된 저진폭 사인).
+        target = {
+          left: target.left + Math.sin(now / 1100 + ref.idlePhase) * 0.35,
+          top: target.top + Math.cos(now / 1450 + ref.idlePhase) * 0.3,
+        }
+        // 잔발 드리블 위브: 캐리 중인 보유자의 목표에 진행방향 수직 지그재그를 얹는다.
+        if (activeFlair?.type === 'weave' && activeFlair.actorId === ref.playerId) {
+          const dx = target.left - ref.current.left
+          const dy = target.top - ref.current.top
+          const len = Math.hypot(dx, dy) || 1
+          const wobble = Math.sin(activeFlair.elapsedMs / 70) * activeFlair.amp
+          target = { left: target.left + (-dy / len) * wobble, top: target.top + (dx / len) * wobble }
+        }
+      }
       for (let s = 0; s < substeps; s++) {
         const result = springStep(ref.current, ref.velocity, target, ref.pace, subDt, speed)
         ref.current = result.current
@@ -265,7 +323,7 @@ function createPlaybackController(events, refs) {
       applyOffset(ref)
     }
     // 선수들이 움직인 "뒤" 볼을 갱신해야 held/호밍이 그 프레임의 실측 토큰 위치를 본다.
-    ballState = advanceBall(ballState, deltaSeconds * 1000 * speed)
+    ballState = advanceBall(ballState, frameMs)
     renderBall()
     activeRafId = requestAnimationFrame(stepFrame)
   }
@@ -315,10 +373,40 @@ function createPlaybackController(events, refs) {
       ballState = flightToPointState(ballScreenPos, goalMouthOf(event.team), flightMs)
     }
 
-    // ---- 강풀: 이벤트 주역만 이벤트 존 지점으로 실제 이동 ----
+    // ---- 강풀: 이벤트 주역은 이벤트 존으로, 수비 1~2명은 볼 쪽 압박 추격 ----
     pullOverrides.clear()
+    const eventPos = eventPosition(event)
     const puller = pullActorOf(event)
-    if (puller) pullOverrides.set(puller, eventPosition(event))
+    if (puller) pullOverrides.set(puller, eventPos)
+
+    // 압박 추격: 비소유팀 필드플레이어 중 볼과 가장 가까운 1~2명이 이벤트 지점으로 좁혀
+    // 들어간다 — pressing 전술이 높을수록 2명(더 공격적인 압박이 눈에 보인다).
+    const defendingTeam = possessionTeam === 'A' ? 'B' : 'A'
+    const pressing = tacticsBySide?.[defendingTeam]?.pressing ?? 0.5
+    const pursuerCount = pressing > 0.66 ? 2 : 1
+    const pursuers = steeringRefs
+      .filter((r) => r.team === defendingTeam && !r.isGK && !pullOverrides.has(r.playerId))
+      .map((r) => ({ r, d: Math.hypot(r.current.left - eventPos.left, r.current.top - eventPos.top) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, pursuerCount)
+    for (const { r } of pursuers) pullOverrides.set(r.playerId, eventPos)
+
+    // ---- 드리블 플레어 (렌더 전용 — rng 금지, 이벤트 값으로 결정론 트리거) ----
+    if (event.type === 'carry') {
+      const carrier = refsById.get(event.actorId)
+      const dribbling = carrier?.dribbling ?? 60
+      const rouletteTick = (event.chainId * 7 + event.minute) % 4 === 0
+      if (dribbling >= 86 && rouletteTick) {
+        activeFlair = { type: 'roulette', actorId: event.actorId, elapsedMs: 0, durationMs: 450 }
+      } else {
+        activeFlair = {
+          type: 'weave', actorId: event.actorId, elapsedMs: 0,
+          durationMs: delayFor(event), amp: 0.7 + (dribbling / 99) * 1.3,
+        }
+      }
+    } else {
+      activeFlair = null
+    }
 
     renderBall()
 
@@ -326,6 +414,8 @@ function createPlaybackController(events, refs) {
       if (event.team === 'A') score.home++
       else score.away++
       scoreEl.textContent = `${score.home} - ${score.away}`
+      celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
+      spawnFlash(pitchEl, 'GOAL!', 'goal')
     }
 
     const text = eventCommentary(event, findPlayer)
@@ -357,6 +447,8 @@ function createPlaybackController(events, refs) {
     ballState = restState({ left: 50, top: 50 })
     ballScreenPos = { left: 50, top: 50 }
     pullOverrides.clear()
+    activeFlair = null
+    celebration = null
     possessionTeam = null
     renderBall()
     minuteEl.textContent = "0'"
@@ -546,6 +638,7 @@ export function renderMatch(mountEl) {
     controller = createPlaybackController(result.events, {
       ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary, onPhaseChange: setPhase,
       pitchEl: pitch, steeringRefs,
+      tacticsBySide: { A: getTacticsState('home'), B: getTacticsState('away') },
     })
     controller.start()
   }

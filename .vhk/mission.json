@@ -1,12 +1,18 @@
 {
   "schemaVersion": 1,
-  "objective": "Goal 2: 시뮬레이션 엔진 코어 + 몬테카를로 검증 게이트 — rng/zones/duel/traits/stamina/possession/engine",
+  "objective": "v2 N2(goal 12): 매치엔진 리얼리즘 이벤트 — 파울/카드/코너/FK/PK/오프사이드 + 휴면 특성 발동 + 생동감(압박추격/티키타카/드리블 플레어)",
   "scope": [
-    "src/sim/**,tests/sim/**"
+    "src/sim/**",
+    "src/ui/**",
+    "tests/**",
+    "css/**",
+    "scripts/**",
+    "goals/**",
+    "docs/**"
   ],
   "forbidden": [
-    "src/ui/**,src/data/**"
+    "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-02T11:37:26.493Z"
+  "updatedAt": "2026-07-03T02:53:47.737Z"
 }

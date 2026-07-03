@@ -109,3 +109,49 @@
   opacity: var(--opacity-disabled);
   cursor: default;
 }
+
+/* 골/카드 플래시 — 필드 중앙에 떴다가 스스로 사라진다(JS가 animationend에서 제거). */
+.match__flash {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-pitch-overlay);
+  pointer-events: none;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  animation: match-flash-pop var(--duration-slow) var(--ease-decelerate) forwards,
+             match-flash-fade 0.6s var(--ease-standard) 0.7s forwards;
+}
+
+.match__flash--goal {
+  font-size: var(--text-4xl);
+  color: var(--accent-gold-bright);
+  text-shadow: 0 0 18px var(--glow-gold);
+}
+
+.match__flash--yellow,
+.match__flash--red {
+  font-size: var(--text-base);
+  padding: var(--space-8) var(--space-6);
+  border-radius: 2px;
+  color: transparent;
+  width: 26px;
+  height: 36px;
+}
+
+.match__flash--yellow { background: var(--color-warning); }
+.match__flash--red { background: var(--color-danger); }
+
+@keyframes match-flash-pop {
+  from { opacity: 0; scale: 0.5; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes match-flash-fade {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match__flash { animation: match-flash-fade 0.9s linear 0.6s forwards; }
+}
