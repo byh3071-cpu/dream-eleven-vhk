@@ -5,6 +5,7 @@ import { getLastMatchResult } from './match.js'
 import { findPlayer } from '../../data/players.db.js'
 import { eventCommentary } from '../../sim/commentary.js'
 import { navigate } from '../../router.js'
+import { homePath, ifSquadPath, ifMatchPath } from '../../routes.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 const TEAM_TO_SIDE = { A: 'home', B: 'away' }
@@ -28,7 +29,7 @@ function renderGuard(mountEl) {
   link.type = 'button'
   link.className = 'chip chip--active'
   link.textContent = '경기 관전으로 이동'
-  link.addEventListener('click', () => navigate('/match'))
+  link.addEventListener('click', () => navigate(ifMatchPath()))
   guard.append(message, link)
 
   screen.append(topbar, guard)
@@ -153,25 +154,25 @@ function renderActions() {
   rematch.type = 'button'
   rematch.className = 'chip chip--active'
   rematch.textContent = '재대결하러 가기'
-  rematch.addEventListener('click', () => navigate('/match'))
+  rematch.addEventListener('click', () => navigate(ifMatchPath()))
 
   const editHome = document.createElement('button')
   editHome.type = 'button'
   editHome.className = 'chip'
   editHome.textContent = '홈 스쿼드 수정'
-  editHome.addEventListener('click', () => navigate('/squad/home'))
+  editHome.addEventListener('click', () => navigate(ifSquadPath('home')))
 
   const editAway = document.createElement('button')
   editAway.type = 'button'
   editAway.className = 'chip'
   editAway.textContent = '원정 스쿼드 수정'
-  editAway.addEventListener('click', () => navigate('/squad/away'))
+  editAway.addEventListener('click', () => navigate(ifSquadPath('away')))
 
   const newGame = document.createElement('button')
   newGame.type = 'button'
   newGame.className = 'link-button'
   newGame.textContent = '새 경기(처음으로)'
-  newGame.addEventListener('click', () => navigate('/'))
+  newGame.addEventListener('click', () => navigate(homePath()))
 
   wrap.append(rematch, editHome, editAway, newGame)
   return wrap

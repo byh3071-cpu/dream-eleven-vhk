@@ -4,6 +4,7 @@
 
 import { DEFAULT_TACTICS } from '../../sim/tactics-modifiers.js'
 import { navigate } from '../../router.js'
+import { ifSquadPath, ifMatchPath } from '../../routes.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 
@@ -126,7 +127,7 @@ export function renderTactics(mountEl, params) {
   back.type = 'button'
   back.className = 'link-button'
   back.textContent = '← 스쿼드로 돌아가기'
-  back.addEventListener('click', () => navigate(`/squad/${side}`))
+  back.addEventListener('click', () => navigate(ifSquadPath(side)))
   topbar.append(title, back)
 
   const body = document.createElement('div')
@@ -143,10 +144,10 @@ export function renderTactics(mountEl, params) {
   nextBtn.className = 'chip chip--active'
   if (side === 'home') {
     nextBtn.textContent = '다음: 원정 스쿼드 구성 →'
-    nextBtn.addEventListener('click', () => navigate('/squad/away'))
+    nextBtn.addEventListener('click', () => navigate(ifSquadPath('away')))
   } else {
     nextBtn.textContent = '경기 시작 →'
-    nextBtn.addEventListener('click', () => navigate('/match'))
+    nextBtn.addEventListener('click', () => navigate(ifMatchPath()))
   }
   body.appendChild(nextBtn)
 

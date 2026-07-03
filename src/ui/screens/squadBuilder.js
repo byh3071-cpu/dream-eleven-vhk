@@ -10,6 +10,7 @@ import { createPlayerBadge } from '../components/playerBadge.js'
 import { createPlayerCard } from '../components/playerCard.js'
 import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
+import { ifTacticsPath } from '../../routes.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 
@@ -288,7 +289,7 @@ export function renderSquadBuilder(mountEl, params) {
   tacticsLink.type = 'button'
   tacticsLink.className = 'link-button'
   tacticsLink.textContent = '감독 지침 →'
-  tacticsLink.addEventListener('click', () => navigate(`/tactics/${side}`))
+  tacticsLink.addEventListener('click', () => navigate(ifTacticsPath(side)))
   topbarRight.append(renderStrength(sideState, formation), tacticsLink)
 
   topbar.append(title, topbarRight)

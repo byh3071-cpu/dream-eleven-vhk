@@ -10,6 +10,7 @@ import { eventCommentary } from '../../sim/commentary.js'
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
+import { ifSquadPath, ifResultPath } from '../../routes.js'
 import { computeTarget, springStep, MAX_SUBSTEP } from '../steering.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
@@ -79,7 +80,7 @@ function renderGuard(mountEl, problems) {
     link.type = 'button'
     link.className = 'chip'
     link.textContent = `${SIDE_LABEL[side]} 스쿼드로 이동`
-    link.addEventListener('click', () => navigate(`/squad/${side}`))
+    link.addEventListener('click', () => navigate(ifSquadPath(side)))
     row.append(text, link)
     guard.appendChild(row)
   }
@@ -501,7 +502,7 @@ export function renderMatch(mountEl) {
   resultLink.className = 'link-button'
   resultLink.textContent = '결과 화면 보기 →'
   resultLink.hidden = true
-  resultLink.addEventListener('click', () => navigate('/result'))
+  resultLink.addEventListener('click', () => navigate(ifResultPath()))
   ui.bar.appendChild(resultLink)
 
   screen.append(topbar, scoreboard, pitch, commentary, ui.bar)
