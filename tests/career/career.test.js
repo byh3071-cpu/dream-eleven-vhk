@@ -7,6 +7,8 @@ import { CAREER_POOL, findCareerPlayer } from '../../src/career/players.js'
 import { generateFixtures, fixturesOfRound, totalRounds } from '../../src/career/schedule.js'
 import { runDraft, createDraftState, applyPick, currentClubOf } from '../../src/career/draft.js'
 import { topScorers } from '../../src/career/records.js'
+import { playerValue } from '../../src/career/value.js'
+import { canBuy, bestSellOffer } from '../../src/career/transfers.js'
 import { computeTable } from '../../src/career/table.js'
 import { initialPlayerState, applyRound, dampenPlayer, isSuspended, FATIGUE_PER_MATCH } from '../../src/career/playerState.js'
 import { pickBestXI } from '../../src/career/aiLineup.js'
@@ -319,8 +321,8 @@ describe('N4 — 세이브 마이그레이션 v1 -> v2', () => {
   })
 })
 
-describe('N4 — 시즌 전환 + 득점왕', () => {
-  test('시즌1 완주 -> 다음 시즌: 히스토리 적립, 드래프트 재진입, 시즌2 완주 가능', () => {
+describe('N4/N5 — 시즌 전환(이적창) + 득점왕', () => {
+  test('시즌1 완주 -> 이적창: 히스토리/순위 보상, 로스터 유지, 시즌2 진행 가능', () => {
     let { storage } = freshCareer(41)
     let save = store.getCareer()
     for (let round = 1; round <= 12; round++) save = store.finishRound({}, storage)
@@ -328,22 +330,124 @@ describe('N4 — 시즌 전환 + 득점왕', () => {
 
     const season1Top = topScorers(save.fixtures, { limit: 1 })[0]
     expect(season1Top.goals).toBeGreaterThan(0)
+    const rostersBefore = JSON.parse(JSON.stringify(save.rosters))
 
-    save = store.startNextSeason(storage)
-    expect(save.phase).toBe('draft')
+    save = store.enterTransferWindow(storage)
+    expect(save.phase).toBe('transfer')
     expect(save.season.number).toBe(2)
     expect(save.history).toHaveLength(1)
-    expect(save.history[0].season).toBe(1)
     expect(save.history[0].championClubId).toBeTruthy()
     expect(save.history[0].topScorer.playerId).toBe(season1Top.playerId)
-    expect(save.history[0].myClubRank).toBeGreaterThanOrEqual(1)
+    // 순위 보상: 총 예산이 지급 총액(40+30+25+20)만큼 증가
+    const totalBudget = Object.values(save.budgets).reduce((a, b) => a + b, 0)
+    expect(totalBudget).toBe(4 * 60 + 115)
+    // 로스터 연속성(재드래프트 폐지): AI-AI 이적 몇 건 외에는 유지 — 총원 76 불변
+    expect(Object.values(save.rosters).flat()).toHaveLength(76)
+    expect(save.rosters[save.userClubId].length).toBeGreaterThanOrEqual(15)
+    // 계약 연차 -1 (단, AI 이적으로 옮긴 선수는 새 3년 계약이 정상)
+    const transferred = new Set(save.transferLog.map((t) => t.playerId))
+    const untouchedYears = Object.entries(save.contracts)
+      .filter(([id]) => !transferred.has(id))
+      .map(([, years]) => years)
+    expect(Math.max(...untouchedYears)).toBeLessThanOrEqual(2)
+    for (const id of transferred) expect(save.contracts[id]).toBe(3)
+    void rostersBefore
 
-    // 시즌 2: 드래프트 완주 후 한 라운드 진행까지 확인
-    save = completeDraft(storage)
+    save = store.startSeasonAfterTransfer(storage)
     expect(save.phase).toBe('season')
     expect(save.fixtures).toHaveLength(24)
     expect(save.fixtures.every((f) => !f.result)).toBe(true)
     save = store.finishRound({}, storage)
     expect(save.season.currentRound).toBe(2)
+  })
+})
+
+describe('N5 — 가치/이적 규칙', () => {
+  test('가치: 레이팅 단조 증가, 나이 피크(26), 만료 할인', () => {
+    const base = { positions: ['ST'], stats: { pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 40, physical: 80 } }
+    const strong = { ...base, age: 26, stats: { ...base.stats, shooting: 95 } }
+    const weak = { ...base, age: 26, stats: { ...base.stats, shooting: 60 } }
+    expect(playerValue(strong, 2)).toBeGreaterThan(playerValue(weak, 2))
+    const peak = { ...base, age: 26 }
+    const old_ = { ...base, age: 36 }
+    expect(playerValue(peak, 2)).toBeGreaterThan(playerValue(old_, 2))
+    expect(playerValue(peak, 0)).toBeLessThan(playerValue(peak, 2)) // 계약 만료 할인
+  })
+
+  test('영입: 예산/로스터 상한/상대 GK 가드가 거절 사유를 돌려준다', () => {
+    let { storage } = freshCareer(51)
+    let save = store.getCareer()
+    for (let round = 1; round <= 12; round++) save = store.finishRound({}, storage)
+    save = store.enterTransferWindow(storage)
+
+    // 타 구단 최고가 선수 — 예산을 0으로 만들면 거절
+    const otherClub = Object.keys(save.rosters).find((id) => id !== save.userClubId)
+    const target = save.rosters[otherClub][2]
+    const broke = { ...save, budgets: { ...save.budgets, [save.userClubId]: 0 } }
+    expect(canBuy(broke, target).ok).toBe(false)
+    expect(canBuy(broke, target).reason).toContain('예산')
+
+    // 상대 GK 하한: 상대 구단 GK를 사려는 시도(GK 2명뿐) -> 거절
+    const theirGk = save.rosters[otherClub].find((id) => findCareerPlayer(id).positions.includes('GK'))
+    expect(canBuy(save, theirGk).ok).toBe(false)
+  })
+
+  test('영입+판매 왕복: 총원 76/총예산 보존(수수료는 이동만)', () => {
+    let { storage } = freshCareer(61)
+    let save = store.getCareer()
+    for (let round = 1; round <= 12; round++) save = store.finishRound({}, storage)
+    save = store.enterTransferWindow(storage)
+
+    const before = Object.values(save.budgets).reduce((a, b) => a + b, 0)
+    const otherClub = Object.keys(save.rosters).find((id) => id !== save.userClubId)
+    const target = save.rosters[otherClub].find((id) => canBuy(save, id).ok)
+    expect(target).toBeTruthy()
+    save = store.buyPlayer(target, storage)
+    expect(save.rosters[save.userClubId]).toContain(target)
+    expect(save.contracts[target]).toBe(3) // 새 3년 계약
+
+    const sellable = save.rosters[save.userClubId].find((id) => id !== target && bestSellOffer(save, id))
+    expect(sellable).toBeTruthy()
+    save = store.sellPlayer(sellable, storage)
+    expect(save.rosters[save.userClubId]).not.toContain(sellable)
+
+    expect(Object.values(save.rosters).flat()).toHaveLength(76)
+    expect(Object.values(save.budgets).reduce((a, b) => a + b, 0)).toBe(before)
+    expect(save.transferLog.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('AI-AI 이적이 결정론적이고 가드를 지킨다', () => {
+    const run = () => {
+      let { storage } = freshCareer(71)
+      let save = store.getCareer()
+      for (let round = 1; round <= 12; round++) save = store.finishRound({}, storage)
+      return store.enterTransferWindow(storage)
+    }
+    const a = run()
+    const b = run()
+    expect(a.transferLog).toEqual(b.transferLog)
+    for (const ids of Object.values(a.rosters)) {
+      expect(ids.length).toBeGreaterThanOrEqual(15)
+      const gks = ids.filter((id) => findCareerPlayer(id).positions.includes('GK'))
+      expect(gks.length).toBeGreaterThanOrEqual(2)
+    }
+  })
+})
+
+describe('N5 — 세이브 마이그레이션 v2 -> v3', () => {
+  test('v2 세이브가 budgets/contracts/transferLog 기본값으로 승격된다', () => {
+    const storage = fakeStorage()
+    const v2Save = {
+      masterSeed: 1, userClubId: 'aurum', phase: 'season',
+      season: { number: 1, currentRound: 3 },
+      rosters: { aurum: ['zidane'], obsidian: [], crimson: [], glacier: [] },
+      draftState: null, history: [],
+      fixtures: [], playerState: {}, tactics: {}, lineup: null,
+    }
+    storage.setItem('dream-eleven.career', JSON.stringify({ schemaVersion: 2, savedAt: 'x', save: v2Save }))
+    const { save } = loadCareer(storage)
+    expect(save.budgets.aurum).toBe(60)
+    expect(save.contracts.zidane).toBe(2)
+    expect(save.transferLog).toEqual([])
   })
 })

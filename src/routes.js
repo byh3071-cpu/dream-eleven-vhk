@@ -17,6 +17,7 @@ export const ROUTE_PATTERNS = Object.freeze({
   careerMatchday: '/career/matchday',
   careerDraft: '/career/draft',
   careerRecords: '/career/records',
+  careerTransfer: '/career/transfer',
   styleguide: '/styleguide',
 })
 
@@ -74,4 +75,8 @@ export function careerDraftPath() {
 
 export function careerRecordsPath() {
   return '/career/records'
+}
+
+export function careerTransferPath() {
+  return '/career/transfer'
 }

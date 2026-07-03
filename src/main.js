@@ -9,7 +9,7 @@ import { renderStyleguide } from './ui/screens/styleguide.js'
 import {
   renderCareerHome, renderCareerSquad, renderCareerTactics,
   renderCareerTable, renderCareerSchedule, renderCareerMatchday,
-  renderCareerDraft, renderCareerRecords,
+  renderCareerDraft, renderCareerRecords, renderCareerTransfer,
 } from './ui/screens/career.js'
 
 // v2 듀얼 모드: IF 매치는 /if/* 네임스페이스, 커리어(/career/*)는 N3에서 추가.
@@ -27,6 +27,7 @@ registerRoute(ROUTE_PATTERNS.careerSchedule, renderCareerSchedule)
 registerRoute(ROUTE_PATTERNS.careerMatchday, renderCareerMatchday)
 registerRoute(ROUTE_PATTERNS.careerDraft, renderCareerDraft)
 registerRoute(ROUTE_PATTERNS.careerRecords, renderCareerRecords)
+registerRoute(ROUTE_PATTERNS.careerTransfer, renderCareerTransfer)
 registerRoute(ROUTE_PATTERNS.styleguide, renderStyleguide)
 
 startRouter(document.getElementById('app'))

@@ -239,3 +239,22 @@
 .career__table-row--scorer {
   grid-template-columns: 2rem 1fr 5rem 3.5rem;
 }
+
+/* ---------- 이적창 (N5) ---------- */
+
+.career__budget {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+}
+
+.career__transfer-row {
+  grid-template-columns: 3rem 3rem 1fr 4.5rem 3rem auto;
+  max-width: 640px;
+  cursor: default;
+}
+
+.career__contract {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}

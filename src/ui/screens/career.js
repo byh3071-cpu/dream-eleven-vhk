@@ -5,7 +5,7 @@
 import { navigate } from '../../router.js'
 import {
   careerPath, careerSquadPath, careerTacticsPath, careerTablePath,
-  careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, homePath,
+  careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, careerTransferPath, homePath,
 } from '../../routes.js'
 import { CLUBS, findClub } from '../../career/clubs.js'
 import { findCareerPlayer } from '../../career/players.js'
@@ -19,6 +19,8 @@ import { playerOverallRating } from '../../sim/teamStrength.js'
 import { stateOf, isSuspended } from '../../career/playerState.js'
 import { pickBestXI } from '../../career/aiLineup.js'
 import { simulateFixture } from '../../career/matchRunner.js'
+import { canBuy, bestSellOffer, priceOf, clubOfPlayer as transferClubOf, MIN_ROSTER } from '../../career/transfers.js'
+import { playerValue } from '../../career/value.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
 import {
@@ -81,6 +83,10 @@ function guardNoSave({ allowDraftPhase = false } = {}) {
   }
   if (!allowDraftPhase && save.phase === 'draft') {
     navigate(careerDraftPath())
+    return null
+  }
+  if (!allowDraftPhase && save.phase === 'transfer') {
+    navigate(careerTransferPath())
     return null
   }
   return save
@@ -206,6 +212,11 @@ export function renderCareerHome(mountEl) {
     renderCareerDraft(mountEl)
     return
   }
+  if (save.phase === 'transfer') {
+    navigate(careerTransferPath())
+    renderCareerTransfer(mountEl)
+    return
+  }
 
   const club = findClub(save.userClubId)
   const screen = screenShell(`커리어 — ${club.name}`, { backTo: homePath(), backLabel: '← 모드 선택' })
@@ -226,13 +237,13 @@ export function renderCareerHome(mountEl) {
     const nextSeason = document.createElement('button')
     nextSeason.type = 'button'
     nextSeason.className = 'chip chip--active'
-    nextSeason.textContent = `시즌 ${save.season.number + 1} 드래프트 시작 →`
+    nextSeason.textContent = `시즌 ${save.season.number} 이적창 열기 →`
     nextSeason.addEventListener('click', () => {
-      store.startNextSeason()
+      store.enterTransferWindow()
       squadEditor = null
-      navigate(careerDraftPath())
+      navigate(careerTransferPath())
       mountEl.replaceChildren()
-      renderCareerDraft(mountEl)
+      renderCareerTransfer(mountEl)
     })
 
     const reset = document.createElement('button')
@@ -823,6 +834,162 @@ export function renderCareerRecords(mountEl) {
       body.appendChild(line)
     }
   }
+
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- /career/transfer (N5 이적창) ----------
+
+function transferRow(save, playerId, { action }) {
+  const player = findCareerPlayer(playerId)
+  const row = document.createElement('div')
+  row.className = 'player-row career__transfer-row'
+
+  const rating = document.createElement('span')
+  rating.className = 'player-row__rating'
+  rating.textContent = String(playerOverallRating(player))
+  const pos = document.createElement('span')
+  pos.className = 'player-row__pos'
+  pos.textContent = player.positions[0]
+  const name = document.createElement('span')
+  name.className = 'player-row__name'
+  name.textContent = player.name
+  const club = document.createElement('span')
+  const ownerClubId = transferClubOf(save, playerId)
+  if (ownerClubId) club.appendChild(clubLabel(ownerClubId, { short: true }))
+  const contract = document.createElement('span')
+  contract.className = 'career__contract'
+  const years = save.contracts?.[playerId] ?? 2
+  contract.textContent = years === 0 ? '만료' : `${years}년`
+  if (years === 0) contract.classList.add('career__chip--danger')
+  row.append(rating, pos, name, club, contract, action)
+  return row
+}
+
+export function renderCareerTransfer(mountEl) {
+  ensureInit()
+  clearActivePlayback()
+  const save = store.getCareer()
+  if (!save) {
+    navigate(careerPath())
+    return
+  }
+  if (save.phase !== 'transfer') {
+    navigate(careerPath())
+    renderCareerHome(mountEl)
+    return
+  }
+
+  const fullRerender = () => {
+    mountEl.replaceChildren()
+    renderCareerTransfer(mountEl)
+  }
+
+  const screen = screenShell(`이적창 — 시즌 ${save.season.number}`, { backTo: homePath(), backLabel: '← 모드 선택' })
+  const body = document.createElement('div')
+  body.className = 'career__body'
+
+  const budget = document.createElement('div')
+  budget.className = 'career__budget'
+  budget.textContent = `내 예산 ${save.budgets[save.userClubId]}M`
+  body.appendChild(budget)
+
+  // 이번 창 거래 로그(내 거래 + AI 배경 거래)
+  const seasonLog = (save.transferLog ?? []).filter((t) => t.season === save.season.number)
+  if (seasonLog.length > 0) {
+    const logBox = document.createElement('div')
+    logBox.className = 'career__draft-log'
+    for (const entry of seasonLog.slice(-6).reverse()) {
+      const line = document.createElement('div')
+      line.className = 'career__history-line'
+      const player = findCareerPlayer(entry.playerId)
+      line.append(
+        clubLabel(entry.fromClubId, { short: true }),
+        document.createTextNode(` → `),
+        clubLabel(entry.toClubId, { short: true }),
+        document.createTextNode(` ${player.name} (${entry.fee}M)`),
+      )
+      logBox.appendChild(line)
+    }
+    body.appendChild(logBox)
+  }
+
+  // ---- 영입: 타 구단 선수 (가치 내림차순) ----
+  const buyHeading = document.createElement('div')
+  buyHeading.className = 'career__round-heading'
+  buyHeading.textContent = '영입 — 타 구단 선수'
+  body.appendChild(buyHeading)
+
+  const buyList = document.createElement('div')
+  buyList.className = 'squad-builder__list squad-builder__list--rows'
+  const others = Object.entries(save.rosters)
+    .filter(([clubId]) => clubId !== save.userClubId)
+    .flatMap(([, ids]) => ids)
+    .sort((a, b) => priceOf(save, b) - priceOf(save, a))
+  for (const playerId of others) {
+    const check = canBuy(save, playerId)
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'chip'
+    btn.textContent = `영입 ${priceOf(save, playerId)}M`
+    if (!check.ok) {
+      btn.disabled = true
+      btn.title = check.reason
+    } else {
+      btn.addEventListener('click', () => {
+        store.buyPlayer(playerId)
+        fullRerender()
+      })
+    }
+    buyList.appendChild(transferRow(save, playerId, { action: btn }))
+  }
+  body.appendChild(buyList)
+
+  // ---- 판매: 내 스쿼드 ----
+  const sellHeading = document.createElement('div')
+  sellHeading.className = 'career__round-heading'
+  sellHeading.textContent = `판매 — 내 스쿼드 (${save.rosters[save.userClubId].length}명, 하한 ${MIN_ROSTER}명)`
+  body.appendChild(sellHeading)
+
+  const sellList = document.createElement('div')
+  sellList.className = 'squad-builder__list squad-builder__list--rows'
+  const mine = [...save.rosters[save.userClubId]]
+    .sort((a, b) => playerValue(findCareerPlayer(b), save.contracts?.[b] ?? 2)
+      - playerValue(findCareerPlayer(a), save.contracts?.[a] ?? 2))
+  for (const playerId of mine) {
+    const offer = bestSellOffer(save, playerId)
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'chip'
+    if (offer) {
+      btn.textContent = `판매 ${offer.fee}M`
+      btn.title = `${findClub(offer.clubId).name}의 오퍼`
+      btn.addEventListener('click', () => {
+        store.sellPlayer(playerId)
+        fullRerender()
+      })
+    } else {
+      btn.textContent = '오퍼 없음'
+      btn.disabled = true
+      btn.title = '로스터/GK 하한 또는 구매 여력 있는 구단 없음'
+    }
+    sellList.appendChild(transferRow(save, playerId, { action: btn }))
+  }
+  body.appendChild(sellList)
+
+  const startBtn = document.createElement('button')
+  startBtn.type = 'button'
+  startBtn.className = 'chip chip--active'
+  startBtn.textContent = `시즌 ${save.season.number} 개막 →`
+  startBtn.addEventListener('click', () => {
+    store.startSeasonAfterTransfer()
+    squadEditor = null
+    navigate(careerPath())
+    mountEl.replaceChildren()
+    renderCareerHome(mountEl)
+  })
+  body.appendChild(startBtn)
 
   screen.appendChild(body)
   mountEl.appendChild(screen)
