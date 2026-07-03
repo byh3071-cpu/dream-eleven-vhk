@@ -3,7 +3,7 @@ vhk_format: 1
 type: goal
 id: 8
 title: Canvas 연속 스티어링 렌더러 (스트레치)
-status: NOT_STARTED
+status: DONE
 priority: P2
 ---
 

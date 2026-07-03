@@ -3,7 +3,7 @@ vhk_format: 1
 type: goal
 id: 5
 title: UI 화면 통합 + 다크골드 테마
-status: NOT_STARTED
+status: DONE
 priority: P0
 ---
 

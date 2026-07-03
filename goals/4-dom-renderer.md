@@ -3,7 +3,7 @@ vhk_format: 1
 type: goal
 id: 4
 title: DOM 렌더러 (pitchRenderer.dom.js)
-status: NOT_STARTED
+status: DONE
 priority: P0
 ---
 

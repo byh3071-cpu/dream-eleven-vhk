@@ -3,7 +3,7 @@ vhk_format: 1
 type: goal
 id: 6
 title: 선수 데이터 확장 (16~20명 → 60~100명)
-status: NOT_STARTED
+status: DONE
 priority: P1
 ---
 
