@@ -29,6 +29,8 @@ const MIGRATIONS = [
     seasonStats: {},
     boardTrust: 55,
     financeLog: [],
+    debtRounds: 0,
+    gameOverReason: null,
   }),
 ]
 

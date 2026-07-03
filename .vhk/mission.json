@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 17: 재미 요소 A/B/C — 시즌 어워드+베스트XI(평점 적립/세이브 v4), 골 리플레이(chainId 구간 슬로모 재적용), 서사 칩(연속골/연승/상대전적)",
+  "objective": "goal 16(N6): 구단 경영/재정 — 주급/관중수입 라운드 정산, 보드 신임도, 게임오버 2종(경질/파산), /career/finance, tune-finance 밸런싱 게이트",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T07:35:37.658Z"
+  "updatedAt": "2026-07-03T08:03:46.621Z"
 }

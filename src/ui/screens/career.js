@@ -5,7 +5,8 @@
 import { navigate } from '../../router.js'
 import {
   careerPath, careerSquadPath, careerTacticsPath, careerTablePath,
-  careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, careerTransferPath, homePath,
+  careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, careerTransferPath,
+  careerFinancePath, homePath,
 } from '../../routes.js'
 import { CLUBS, findClub } from '../../career/clubs.js'
 import { findCareerPlayer } from '../../career/players.js'
@@ -24,6 +25,7 @@ import { playerValue } from '../../career/value.js'
 import { motmOf } from '../../sim/playerRatings.js'
 import { seasonAwards } from '../../career/awards.js'
 import { computePreMatchChips } from '../../career/narrative.js'
+import { FINANCE, expectedRankOf } from '../../career/finance.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
 import {
@@ -92,6 +94,10 @@ function guardNoSave({ allowDraftPhase = false } = {}) {
     navigate(careerTransferPath())
     return null
   }
+  if (save.phase === 'gameover') {
+    navigate(careerPath())
+    return null
+  }
   return save
 }
 
@@ -101,6 +107,7 @@ function navChips(current) {
   const items = [
     ['홈', careerPath()], ['스쿼드', careerSquadPath()], ['전술', careerTacticsPath()],
     ['일정', careerSchedulePath()], ['순위표', careerTablePath()], ['기록', careerRecordsPath()],
+    ['재정', careerFinancePath()],
     ['매치데이', careerMatchdayPath()],
   ]
   for (const [label, path] of items) {
@@ -220,12 +227,33 @@ export function renderCareerHome(mountEl) {
     renderCareerTransfer(mountEl)
     return
   }
+  if (save.phase === 'gameover') {
+    renderGameOver(mountEl, save)
+    return
+  }
 
   const club = findClub(save.userClubId)
   const screen = screenShell(`커리어 — ${club.name}`, { backTo: homePath(), backLabel: '← 모드 선택' })
   const body = document.createElement('div')
   body.className = 'career__body'
   body.appendChild(navChips(careerPath()))
+
+  // 경영 상태줄 — 예산/신임도(goal 16). 신임도는 톤으로 위험 신호.
+  const statusRow = document.createElement('div')
+  statusRow.className = 'career__player-chips'
+  const budgetChip = document.createElement('span')
+  budgetChip.className = 'career__chip career__chip--good'
+  budgetChip.textContent = `예산 ${save.budgets?.[save.userClubId] ?? 0}M`
+  if ((save.budgets?.[save.userClubId] ?? 0) < 0) {
+    budgetChip.className = 'career__chip career__chip--danger'
+    budgetChip.textContent += ` (적자 ${save.debtRounds ?? 0}/${FINANCE.DEBT_LIMIT_ROUNDS}라운드)`
+  }
+  const trustChip = document.createElement('span')
+  const trust = save.boardTrust ?? 55
+  trustChip.className = 'career__chip ' + (trust >= 60 ? 'career__chip--good' : trust >= 30 ? 'career__chip--warn' : 'career__chip--danger')
+  trustChip.textContent = `보드 신임도 ${trust}`
+  statusRow.append(budgetChip, trustChip)
+  body.appendChild(statusRow)
 
   if (store.seasonDone(save)) {
     const tableRows = computeTable(CLUBS.map((c) => c.id), save.fixtures)
@@ -1053,6 +1081,126 @@ export function renderCareerTransfer(mountEl) {
     renderCareerHome(mountEl)
   })
   body.appendChild(startBtn)
+
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- /career/finance (goal 16) ----------
+
+export function renderCareerFinance(mountEl) {
+  ensureInit()
+  clearActivePlayback()
+  const save = guardNoSave()
+  if (!save) return
+
+  const screen = screenShell('재정')
+  const body = document.createElement('div')
+  body.className = 'career__body'
+  body.appendChild(navChips(careerFinancePath()))
+
+  const summary = document.createElement('div')
+  summary.className = 'career__player-chips'
+  const mkChip = (text, tone) => {
+    const el = document.createElement('span')
+    el.className = 'career__chip' + (tone ? ` career__chip--${tone}` : '')
+    el.textContent = text
+    return el
+  }
+  const balance = save.budgets?.[save.userClubId] ?? 0
+  summary.append(
+    mkChip(`잔고 ${balance}M`, balance >= 0 ? 'good' : 'danger'),
+    mkChip(`보드 신임도 ${save.boardTrust ?? 55}`, (save.boardTrust ?? 55) >= 60 ? 'good' : (save.boardTrust ?? 55) >= 30 ? 'warn' : 'danger'),
+    mkChip(`라운드 주급 ${save.financeLog?.at(-1)?.wage ?? '-'}M`),
+    mkChip(`기대 순위 ${expectedRankOf(save, save.userClubId)}위`),
+  )
+  body.appendChild(summary)
+
+  const hint = document.createElement('p')
+  hint.className = 'career__hint'
+  hint.textContent = `주급은 선수 가치의 ${Math.round(FINANCE.WAGE_RATE * 100)}%/시즌을 라운드 분할로 나간다. `
+    + `홈경기 관중 수입은 순위·승리에 붙는다. 예산이 ${FINANCE.DEBT_LIMIT_ROUNDS}라운드 연속 음수면 파산, 신임도 0이면 경질이야.`
+  body.appendChild(hint)
+
+  const heading = document.createElement('div')
+  heading.className = 'career__round-heading'
+  heading.textContent = '라운드 정산 내역'
+  body.appendChild(heading)
+
+  const log = [...(save.financeLog ?? [])].reverse().slice(0, 24)
+  if (log.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'career__hint'
+    empty.textContent = '아직 정산 내역이 없어 — 라운드를 소화하면 쌓인다.'
+    body.appendChild(empty)
+  } else {
+    const table = document.createElement('div')
+    table.className = 'career__table'
+    for (const entry of log) {
+      const row = document.createElement('div')
+      row.className = 'career__table-row career__table-row--finance'
+      const label = document.createElement('span')
+      label.textContent = `S${entry.season} R${entry.round}`
+      const gate = document.createElement('span')
+      gate.textContent = entry.gate > 0 ? `+${entry.gate}M` : '—'
+      const wage = document.createElement('span')
+      wage.textContent = `-${entry.wage}M`
+      const bal = document.createElement('span')
+      bal.textContent = `${entry.balance}M`
+      if (entry.balance < 0) bal.className = 'career__finance-negative'
+      const trustCell = document.createElement('span')
+      trustCell.textContent = String(entry.trust)
+      row.append(label, gate, wage, bal, trustCell)
+      table.appendChild(row)
+    }
+    const head = document.createElement('div')
+    head.className = 'career__table-row career__table-row--head career__table-row--finance'
+    for (const h of ['라운드', '관중', '주급', '잔고', '신임']) {
+      const cell = document.createElement('span')
+      cell.textContent = h
+      head.appendChild(cell)
+    }
+    table.prepend(head)
+    body.appendChild(table)
+  }
+
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- 게임오버 (경질/파산) ----------
+
+function renderGameOver(mountEl, save) {
+  const screen = screenShell('커리어 종료', { backTo: homePath(), backLabel: '← 모드 선택' })
+  const body = document.createElement('div')
+  body.className = 'career__body'
+
+  const banner = document.createElement('div')
+  banner.className = 'career__gameover'
+  banner.textContent = save.gameOverReason === 'bankrupt'
+    ? '💸 파산 — 구단 재정이 무너졌다. 보드는 관리 책임을 물어 계약을 해지했다.'
+    : '🪑 경질 — 보드의 신임을 완전히 잃었다.'
+  body.appendChild(banner)
+
+  const record = document.createElement('p')
+  record.className = 'career__hint'
+  const seasons = save.history.length
+  const titles = save.history.filter((h) => h.championClubId === save.userClubId).length
+  record.textContent = `재임 기록: ${seasons + 1}번째 시즌 도중 하차 · 우승 ${titles}회 · `
+    + `최종 잔고 ${save.budgets?.[save.userClubId] ?? 0}M · 신임도 ${save.boardTrust}`
+  body.appendChild(record)
+
+  const restart = document.createElement('button')
+  restart.type = 'button'
+  restart.className = 'chip chip--active'
+  restart.textContent = '새 커리어 시작(기존 세이브 삭제)'
+  restart.addEventListener('click', () => {
+    store.resetCareer()
+    squadEditor = null
+    mountEl.replaceChildren()
+    renderCareerHome(mountEl)
+  })
+  body.appendChild(restart)
 
   screen.appendChild(body)
   mountEl.appendChild(screen)

@@ -332,15 +332,17 @@ describe('N4/N5 — 시즌 전환(이적창) + 득점왕', () => {
     expect(season1Top.goals).toBeGreaterThan(0)
     const rostersBefore = JSON.parse(JSON.stringify(save.rosters))
 
+    // goal 16부터 라운드 정산(관중 수입-주급)이 굴러가므로 총액은 고정값이 아니다 —
+    // "이적창 진입이 보상 115M을 정확히 더한다"는 차액 불변식으로 검증.
+    const totalBefore = Object.values(save.budgets).reduce((a, b) => a + b, 0)
     save = store.enterTransferWindow(storage)
     expect(save.phase).toBe('transfer')
     expect(save.season.number).toBe(2)
     expect(save.history).toHaveLength(1)
     expect(save.history[0].championClubId).toBeTruthy()
     expect(save.history[0].topScorer.playerId).toBe(season1Top.playerId)
-    // 순위 보상: 총 예산이 지급 총액(40+30+25+20)만큼 증가
     const totalBudget = Object.values(save.budgets).reduce((a, b) => a + b, 0)
-    expect(totalBudget).toBe(4 * 60 + 115)
+    expect(totalBudget).toBe(totalBefore + 115)
     // 로스터 연속성(재드래프트 폐지): AI-AI 이적 몇 건 외에는 유지 — 총원 76 불변
     expect(Object.values(save.rosters).flat()).toHaveLength(76)
     expect(save.rosters[save.userClubId].length).toBeGreaterThanOrEqual(15)

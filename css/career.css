@@ -276,3 +276,25 @@
   color: var(--accent-gold-bright);
   font-weight: 700;
 }
+
+/* ---------- 재정/게임오버 (goal 16) ---------- */
+
+.career__table-row--finance {
+  grid-template-columns: 4.5rem 3.5rem 3.5rem 4rem 3rem;
+}
+
+.career__finance-negative {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.career__gameover {
+  background: linear-gradient(165deg, var(--bg-panel-raised) 0%, var(--bg-panel) 78%);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-8);
+  padding: var(--space-20) var(--space-16);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-danger);
+  max-width: 640px;
+}

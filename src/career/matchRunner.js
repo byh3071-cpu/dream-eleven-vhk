@@ -9,6 +9,7 @@ import { DEFAULT_TACTICS } from '../sim/tactics-modifiers.js'
 import { pickBestXI } from './aiLineup.js'
 import { dampenPlayer, applyRound, stateOf } from './playerState.js'
 import { ratePlayers, motmOf } from '../sim/playerRatings.js'
+import { settleRound, gameOverOf } from './finance.js'
 import { findCareerPlayer } from './players.js'
 
 // AI 구단 전술/포메이션 — 구단별 개성(N4에서 확장 여지).
@@ -147,12 +148,25 @@ export function finishRound(save, { precomputedMine = null } = {}) {
     if (cleaned.length !== lineup.assignments.length) lineup = { ...lineup, assignments: cleaned }
   }
 
+  // 라운드 정산(주급/관중 수입/신임도) + 게임오버 판정 — goal 16.
+  const roundFixtures = fixtures
+    .filter((f) => f.round === round && f.result)
+    .map((f) => ({
+      homeClubId: f.homeClubId, awayClubId: f.awayClubId,
+      homeGoals: f.result.homeGoals, awayGoals: f.result.awayGoals,
+    }))
+  const settled = settleRound({ ...save, fixtures }, roundFixtures)
+  const gameOver = gameOverOf(settled)
+
   return {
     ...save,
     fixtures,
     seasonStats,
     playerState,
     lineup,
+    ...settled,
+    phase: gameOver ? 'gameover' : save.phase,
+    gameOverReason: gameOver ?? save.gameOverReason ?? null,
     season: { ...save.season, currentRound: round + 1 },
   }
 }
