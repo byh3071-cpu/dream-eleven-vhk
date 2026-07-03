@@ -172,6 +172,8 @@ function clearActiveRaf() {
 const DELAY_MS = {
   pass: 420, carry: 700, turnover_buildup: 550,
   shot_saved: 700, shot_off_target: 700, goal: 1500, // 골은 셀레브레이션이 읽힐 시간
+  foul: 700, free_kick: 850, corner_kick: 900, clearance: 650, offside: 800,
+  yellow_card: 950, red_card: 1200, penalty_awarded: 1200,
 }
 const SHORT_PASS_DELAY_MS = 260 // 티키타카(style 'short') — 원터치 리듬
 const FLIGHT_RATIO = 0.72
@@ -185,12 +187,24 @@ function delayFor(event) {
 // 이 이벤트에서 강풀(이벤트 지점으로 실제 이동)을 받을 선수 — 패스는 수신자, 나머지는 주역.
 function pullActorOf(event) {
   if (event.type === 'pass') return event.toId
+  if (event.type === 'free_kick' || event.type === 'corner_kick') return event.takerId
+  if (event.type === 'yellow_card' || event.type === 'red_card' || event.type === 'penalty_awarded') return null
   return event.actorId ?? null
 }
 
 // 슛의 목표 지점(상대 골문). screenTop 규약: 팀 A는 위(top 0), B는 아래(top 100)를 공격.
 function goalMouthOf(team) {
   return { left: 50, top: screenTop(99, team) }
+}
+
+// 코너 지점 — 공격 방향 골라인의 좌/우 모서리.
+function cornerSpotOf(team, side) {
+  return { left: side === 'LEFT' ? 4 : 96, top: screenTop(97, team) }
+}
+
+// 페널티 스팟.
+function penaltySpotOf(team) {
+  return { left: 50, top: screenTop(88, team) }
 }
 
 // 필드 위 플래시 오버레이(골/카드). CSS 애니메이션이 끝나면 스스로 제거되므로
@@ -364,18 +378,33 @@ function createPlaybackController(events, refs) {
     const flightMs = delayFor(event) * FLIGHT_RATIO
     if (event.type === 'pass') {
       ballState = flightToTokenState(ballScreenPos, event.toId, flightMs)
-    } else if (event.type === 'carry' || event.type === 'turnover_buildup') {
-      // 볼이 짧게 주역의 발밑으로 붙고(탈취/터치), 이후 held로 토큰을 따라간다.
+    } else if (event.type === 'carry' || event.type === 'turnover_buildup'
+        || event.type === 'clearance' || event.type === 'offside') {
+      // 볼이 짧게 주역의 발밑으로 붙고(탈취/걷어냄/터치), 이후 held로 토큰을 따라간다.
       ballState = flightToTokenState(ballScreenPos, event.actorId, CARRY_TRANSFER_MS)
+    } else if (event.type === 'foul') {
+      // 휘슬 — 볼은 피해자 근처에서 멈춘다.
+      ballState = flightToTokenState(ballScreenPos, event.victimId, CARRY_TRANSFER_MS)
+    } else if (event.type === 'free_kick') {
+      ballState = flightToTokenState(ballScreenPos, event.takerId, CARRY_TRANSFER_MS)
+    } else if (event.type === 'corner_kick') {
+      // 볼이 코너 아크로 — 키커는 강풀로 따라온다.
+      ballState = flightToPointState(ballScreenPos, cornerSpotOf(event.team, event.side), flightMs)
+    } else if (event.type === 'penalty_awarded') {
+      ballState = flightToPointState(ballScreenPos, penaltySpotOf(event.team === 'A' ? 'B' : 'A'), flightMs)
     } else if (event.type === 'shot_saved') {
       ballState = flightToTokenState(ballScreenPos, event.gkId, flightMs)
     } else if (event.type === 'goal' || event.type === 'shot_off_target') {
       ballState = flightToPointState(ballScreenPos, goalMouthOf(event.team), flightMs)
     }
+    // yellow_card/red_card는 북키핑 — 볼 상태 무변경.
 
     // ---- 강풀: 이벤트 주역은 이벤트 존으로, 수비 1~2명은 볼 쪽 압박 추격 ----
     pullOverrides.clear()
-    const eventPos = eventPosition(event)
+    // 코너킥은 존 그리드가 아니라 실제 코너 아크로 키커를 보낸다.
+    const eventPos = event.type === 'corner_kick'
+      ? cornerSpotOf(event.team, event.side)
+      : eventPosition(event)
     const puller = pullActorOf(event)
     if (puller) pullOverrides.set(puller, eventPos)
 
@@ -416,6 +445,13 @@ function createPlaybackController(events, refs) {
       scoreEl.textContent = `${score.home} - ${score.away}`
       celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
       spawnFlash(pitchEl, 'GOAL!', 'goal')
+    } else if (event.type === 'yellow_card') {
+      spawnFlash(pitchEl, '', 'yellow')
+    } else if (event.type === 'red_card') {
+      spawnFlash(pitchEl, '', 'red')
+      // 퇴장자는 필드에서 흐려진다 — 엔진도 이후 체인에서 이 선수를 제외한다.
+      const ref = refsById.get(event.actorId)
+      if (ref) ref.el.style.opacity = 'var(--opacity-disabled)'
     }
 
     const text = eventCommentary(event, findPlayer)
@@ -460,6 +496,7 @@ function createPlaybackController(events, refs) {
       ref.current = { ...ref.basePos }
       ref.velocity = { left: 0, top: 0 }
       ref.el.style.transform = 'translate(-50%, -50%)'
+      ref.el.style.opacity = '' // 퇴장 흐림 해제(다시보기/재대결)
     }
   }
 

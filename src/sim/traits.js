@@ -10,11 +10,8 @@ export const TRAIT_HOOKS = {
   right_footed: {
     onShot: (player, ctx) => (ctx.footChannel === 'left' ? { accuracyMult: 0.88 } : null),
   },
-  // 주의: possession.js의 현재 2단계 체인은 세트피스/공중볼 상황을 만들지 않는다
-  // (onSetPiece 호출 자체가 없고 duelType: 'aerial'도 발생하지 않음) — 아래 두 훅은
-  // 정의는 되어 있지만 실제 체인에서 발동하지 않는다. 세트피스·크로스 서브시스템을
-  // 추가하는 별도 Goal 전까지는 장식용 상태임을 인지하고 둔다(제거하지 않는 이유:
-  // 훅 자체는 올바르고, 향후 서브시스템 추가 시 연결만 하면 됨).
+  // v2 N2부터 실전 발동: setpieces.js의 직접 프리킥(onSetPiece)과 크로스 공중볼
+  // (duelType 'aerial' — 공격/수비 양쪽 모두)에서 실제 호출 경로가 생겼다.
   free_kick_specialist: {
     onSetPiece: (player, ctx) => (ctx.setPieceType === 'free_kick' ? { successBonus: 0.12 } : null),
   },

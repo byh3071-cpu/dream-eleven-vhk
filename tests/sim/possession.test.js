@@ -1,5 +1,5 @@
 import { resolveChain, decidePossession } from '../../src/sim/possession.js'
-import { ALL_EVENT_TYPES, TERMINAL_TYPES, isTerminal } from '../../src/sim/event-types.js'
+import { ALL_EVENT_TYPES, TERMINAL_TYPES, isTerminal, possessionTeamOf } from '../../src/sim/event-types.js'
 import { initialStaminaState } from '../../src/sim/stamina.js'
 import { createRng } from '../../src/sim/rng.js'
 import { findPlayer } from '../../src/data/players.db.js'
@@ -28,7 +28,8 @@ describe('resolveChain', () => {
       expect(events.length).toBeGreaterThanOrEqual(1)
       for (const evt of events) {
         expect(ALL_EVENT_TYPES).toContain(evt.type)
-        expect(evt.team).toBe('A')
+        // 파울/카드류는 team=반칙팀('B')이 정상 — 소유 팀 기준으로는 전부 공격팀('A')이어야 한다.
+        expect(possessionTeamOf(evt)).toBe('A')
         expect(typeof evt.minute).toBe('number')
       }
       const terminals = events.filter(isTerminal)
@@ -37,25 +38,52 @@ describe('resolveChain', () => {
     }
   })
 
-  test('참여자 소속: pass/carry/슛은 공격팀, turnover의 actorId만 수비팀', () => {
+  test('참여자 소속: 공격 행위는 공격팀, 반칙/수비 행위는 수비팀 선수다', () => {
     const rng = createRng(2)
     const narrationRng = createRng(102)
-    const homeIdSet = new Set(homeIds)
-    const awayIdSet = new Set(awayIds)
-    for (let i = 0; i < 50; i++) {
+    const homeIdSet = new Set(homeIds) // 공격(possessing)
+    const awayIdSet = new Set(awayIds) // 수비(defending)
+    for (let i = 0; i < 80; i++) {
       for (const evt of runChain(rng, narrationRng)) {
-        if (evt.type === 'pass') {
-          expect(homeIdSet.has(evt.fromId)).toBe(true)
-          expect(homeIdSet.has(evt.toId)).toBe(true)
-          expect(evt.fromId).not.toBe(evt.toId)
-        } else if (evt.type === 'carry') {
-          expect(homeIdSet.has(evt.actorId)).toBe(true)
-        } else if (evt.type === 'turnover_buildup') {
-          expect(awayIdSet.has(evt.actorId)).toBe(true)
-          expect(homeIdSet.has(evt.victimId)).toBe(true)
-          expect(['tackle', 'interception']).toContain(evt.cause)
-        } else {
-          expect(homeIdSet.has(evt.actorId)).toBe(true)
+        switch (evt.type) {
+          case 'pass':
+            expect(homeIdSet.has(evt.fromId)).toBe(true)
+            expect(homeIdSet.has(evt.toId)).toBe(true)
+            expect(evt.fromId).not.toBe(evt.toId)
+            break
+          case 'carry':
+            expect(homeIdSet.has(evt.actorId)).toBe(true)
+            break
+          case 'turnover_buildup':
+            expect(awayIdSet.has(evt.actorId)).toBe(true)
+            expect(homeIdSet.has(evt.victimId)).toBe(true)
+            expect(['tackle', 'interception']).toContain(evt.cause)
+            break
+          case 'foul':
+          case 'penalty_awarded':
+            expect(awayIdSet.has(evt.actorId)).toBe(true) // 파울러는 수비팀
+            expect(homeIdSet.has(evt.victimId)).toBe(true)
+            expect(evt.team).toBe('B') // team 필드 = 반칙팀
+            break
+          case 'yellow_card':
+          case 'red_card':
+            expect(awayIdSet.has(evt.actorId)).toBe(true)
+            expect(evt.team).toBe('B')
+            break
+          case 'clearance':
+            expect(awayIdSet.has(evt.actorId)).toBe(true) // 걷어낸 건 수비팀
+            expect(evt.team).toBe('A') // 체인 귀속은 공격팀(턴오버와 같은 관례)
+            break
+          case 'free_kick':
+          case 'corner_kick':
+            expect(homeIdSet.has(evt.takerId)).toBe(true)
+            break
+          case 'offside':
+            expect(homeIdSet.has(evt.actorId)).toBe(true)
+            expect(homeIdSet.has(evt.fromId)).toBe(true)
+            break
+          default:
+            expect(homeIdSet.has(evt.actorId)).toBe(true) // 슛 계열
         }
       }
     }

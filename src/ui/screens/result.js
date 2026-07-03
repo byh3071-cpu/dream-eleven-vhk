@@ -86,6 +86,11 @@ const STAT_ROWS = [
   { key: 'shots', label: '슈팅' },
   { key: 'shotsOnTarget', label: '유효 슈팅' },
   { key: 'goals', label: '득점' },
+  { key: 'corners', label: '코너킥' },
+  { key: 'fouls', label: '파울' },
+  { key: 'yellows', label: '경고' },
+  { key: 'reds', label: '퇴장' },
+  { key: 'offsides', label: '오프사이드' },
 ]
 
 function renderStatsTable(result) {

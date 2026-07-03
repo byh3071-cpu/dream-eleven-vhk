@@ -4,7 +4,9 @@
 // 허공에서 순간이동하는 문제가 데이터 레벨에서 재발한다.
 
 import { simulateMatch } from '../../src/sim/engine.js'
-import { startHolderOf, endHolderOf, isTerminal } from '../../src/sim/event-types.js'
+import {
+  startHolderOf, endHolderOf, isTerminal, isBallEvent, CONTINUITY_EXEMPT_TYPES,
+} from '../../src/sim/event-types.js'
 import { BANDS } from '../../src/sim/zones.js'
 import { makeSyntheticTeam } from '../fixtures/syntheticTeam.js'
 
@@ -35,12 +37,18 @@ describe('서술 불변식 (seed 0..99 전수)', () => {
     }
   })
 
-  test('① 연속성: 이벤트 N의 시작 보유자 == 이벤트 N-1의 종료 보유자', () => {
+  test('① 연속성: 볼 이벤트 N의 시작 보유자 == N-1의 종료 보유자 (데드볼 페어 면제)', () => {
     for (const chain of allChains) {
-      for (let i = 1; i < chain.length; i++) {
-        const prevEnd = endHolderOf(chain[i - 1])
-        const nextStart = startHolderOf(chain[i])
-        expect(nextStart).toBe(prevEnd)
+      // 북키핑(카드/PK선언)은 볼 이동이 없으니 연속성 검사에서 제외.
+      const ballEvents = chain.filter(isBallEvent)
+      for (let i = 1; i < ballEvents.length; i++) {
+        const prev = ballEvents[i - 1]
+        const curr = ballEvents[i]
+        // 데드볼(파울/FK/코너)의 앞뒤는 심판이 멈춘 볼을 지정 키커가 이어받는 게 정상.
+        if (CONTINUITY_EXEMPT_TYPES.includes(prev.type) || CONTINUITY_EXEMPT_TYPES.includes(curr.type)) continue
+        // PK 선언(북키핑) 직후의 PK 슛도 데드볼 재개다 — via로 식별.
+        if (curr.via === 'penalty') continue
+        expect(startHolderOf(curr)).toBe(endHolderOf(prev))
       }
     }
   })
@@ -65,13 +73,14 @@ describe('서술 불변식 (seed 0..99 전수)', () => {
     }
   })
 
-  test('④ 성공 체인의 마지막 서술 이벤트 도착자는 슈터다', () => {
+  test('④ 오픈플레이 슛의 직전 이벤트 종료 보유자는 슈터다', () => {
     for (const chain of allChains) {
       const terminal = chain.at(-1)
-      if (terminal.type === 'turnover_buildup') continue
-      // 슛 직전 이벤트(있다면)의 종료 보유자 == 슈터
-      if (chain.length >= 2) {
-        expect(endHolderOf(chain.at(-2))).toBe(terminal.actorId)
+      // 세트피스/PK/오프사이드/턴오버/클리어런스는 데드볼 재개라 이 규칙의 대상이 아님.
+      if (terminal.via !== 'open_play') continue
+      const ballEvents = chain.filter(isBallEvent)
+      if (ballEvents.length >= 2) {
+        expect(endHolderOf(ballEvents.at(-2))).toBe(terminal.actorId)
       }
     }
   })

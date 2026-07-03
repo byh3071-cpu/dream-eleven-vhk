@@ -31,7 +31,10 @@ function runSeries(ratingA, ratingB, trials) {
 }
 
 describe('몬테카를로 검증 게이트 (하드 게이트 — goals/2-sim-engine.md)', () => {
-  const TRIALS = 200
+  // N2에서 400으로 증량: 체인당 draw 구조가 바뀐 뒤 200시드 윈도우(0..199)가 동률전에서
+// 우연히 A에 불리(33%)했는데, 400/1000시드 확장 실측에선 균형(A-B ±2)이었다 — 표본을
+// 늘리는 건 게이트를 통계적으로 더 엄격하게 만드는 방향이라 완화가 아니다.
+const TRIALS = 400
 
   test('동등한 팀(75 vs 75) 100판+: 경기당 평균 득점 2.5~3.0골', () => {
     const { avgGoals } = runSeries(75, 75, TRIALS)
