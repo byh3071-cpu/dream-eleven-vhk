@@ -38,6 +38,33 @@ export function computeTarget(basePos, ballPos, team, hasPossession) {
   }
 }
 
+// ---------- 오프볼 유연성(사용자 지적: "자기 포지션에만 도는 느낌") ----------
+// 포지션 틀은 유지하되 상황 오프셋을 얹는다:
+// - 지원 런: 볼과 가장 가까운 아군 2명이 보유자 앞쪽 대각(패스 옵션)으로 추가 이동.
+//   rank 0은 전진 옵션, rank 1은 반대 대각 — 삼각형이 만들어진다.
+// - 오버랩: 수비 third의 사이드 자원(풀백)이 같은 사이드 공격 시 측선을 타고 전진.
+// 캡을 낮게 유지해 대형 자체는 붕괴하지 않는다(스티어링의 기존 원칙).
+const SUPPORT_PULL = 5
+const SUPPORT_FORWARD = 4
+const OVERLAP_FORWARD = 9
+
+export function computeFlexTarget(basePos, ballPos, team, hasPossession, flex = {}) {
+  const target = computeTarget(basePos, ballPos, team, hasPossession)
+  if (!hasPossession) return target
+  const dir = attackDir(team)
+  if (flex.supportRank === 0 || flex.supportRank === 1) {
+    const sideSign = flex.supportRank === 0 ? 1 : -1
+    const toBallLeft = ballPos.left - target.left
+    target.left += Math.max(-SUPPORT_PULL, Math.min(SUPPORT_PULL, toBallLeft * 0.3))
+      + sideSign * 3
+    target.top += dir * SUPPORT_FORWARD
+  }
+  if (flex.overlap) {
+    target.top += dir * OVERLAP_FORWARD
+  }
+  return target
+}
+
 // ---------- 이벤트 관련자 강풀 (N1 볼-선수 앵커링) ----------
 // 현재 이벤트의 주역(패스 수신자, 드리블러, 태클러, 슈터)은 팀 셰이프 유지가 아니라
 // "이벤트 지점으로 실제로 가는" 그림이어야 한다 — computeTarget의 완만한 쏠림 대신

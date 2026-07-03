@@ -5,6 +5,7 @@
 import { NATIONALITY_NAMES } from '../../data/player-schema.js'
 import { playerOverallRating } from '../../sim/teamStrength.js'
 import { createPlayerBadge } from './playerBadge.js'
+import { playerNumberOf } from '../../data/player-schema.js'
 
 // player: PLAYERS의 선수 객체. options.onClick(player)이 있으면 카드 전체가 버튼처럼 동작.
 // options.assigned: 이미 다른 슬롯에 배정된 선수면 흐리게 표시(리스트에서 중복 배정 방지 신호).
@@ -40,9 +41,10 @@ export function createPlayerCard(player, { onClick, assigned = false } = {}) {
 
   const badge = createPlayerBadge(player, { size: 'lg' })
 
+  // 풀네임 대신 상징 등번호 — 뱃지가 이미 이름을 보여줘서 풀네임은 중복이었다(사용자 지적).
   const nickname = document.createElement('div')
   nickname.className = 'player-card__nickname'
-  nickname.textContent = player.name
+  nickname.textContent = `No.${playerNumberOf(player)}`
 
   const meta = document.createElement('div')
   meta.className = 'player-card__meta'

@@ -51,6 +51,10 @@ export function validatePlayer(player) {
   if (player.shortName !== undefined && (typeof player.shortName !== 'string' || player.shortName.length === 0)) {
     errors.push('shortName은 지정 시 비어있지 않은 문자열이어야 함')
   }
+  // number(옵션): 상징 등번호(펠레 10 등). 없으면 포지션 관례 번호로 표시.
+  if (player.number !== undefined && (!Number.isInteger(player.number) || player.number < 1 || player.number > 99)) {
+    errors.push('number는 지정 시 1~99 정수여야 함')
+  }
   if (!ERAS.includes(player.era)) errors.push(`era는 ${ERAS.join('/')} 중 하나여야 함: ${player.era}`)
   if (!Array.isArray(player.positions) || player.positions.length === 0) {
     errors.push('positions는 비어있지 않은 배열이어야 함')
@@ -88,4 +92,21 @@ export function validatePlayer(player) {
 
 export function primaryPosition(player) {
   return player.positions[0]
+}
+
+// 표시용 등번호 — 상징 번호(number)가 없으면 포지션 관례 번호.
+// CB만 4/5를 id 해시로 갈라 한 팀에 4번이 몰려 보이는 것을 완화한다.
+const DEFAULT_NUMBER = {
+  GK: 1, RB: 2, LB: 3, DM: 6, CM: 8, AM: 10, RM: 7, LM: 11, RW: 7, LW: 11, ST: 9,
+}
+
+export function playerNumberOf(player) {
+  if (player.number) return player.number
+  const pos = player.positions[0]
+  if (pos === 'CB') {
+    let hash = 0
+    for (const ch of player.id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+    return 4 + (hash % 2)
+  }
+  return DEFAULT_NUMBER[pos] ?? 8
 }

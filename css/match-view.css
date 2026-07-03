@@ -18,7 +18,7 @@
 
 .match__pitch {
   position: relative;
-  width: min(480px, 100%);
+  width: min(520px, 100%);
   aspect-ratio: 68 / 100;
   margin: 0 auto;
   background: var(--pitch-surface);
@@ -52,7 +52,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-24);
-  padding: var(--space-8);
+  padding: var(--space-4);
 }
 
 .match__scoreboard-center {
@@ -191,14 +191,18 @@
 @media (min-width: 920px) {
   .match__stage {
     flex-direction: row;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
+    gap: var(--space-8);
   }
 
+  /* 커멘터리가 피치 높이를 꽉 채워 따라간다 — 사이 여백 최소화(사용자 지적). */
   .match__stage .match__commentary {
     width: 300px;
     max-width: 300px;
-    max-height: 560px;
+    max-height: none;
+    height: auto;
+    align-self: stretch;
     margin: 0;
   }
 }
@@ -241,4 +245,55 @@
 @media (prefers-reduced-motion: reduce) {
   .match__pop { animation-duration: 0.5s; }
   .pitch-slot--lunge .player-badge { animation: none; }
+}
+
+/* ---------- 피치 디테일: 잔디 모우 스트라이프 + 비네트 ---------- */
+
+.match__pitch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--pitch-stripe) 0 10%,
+    transparent 10% 20%
+  );
+  pointer-events: none;
+}
+
+.match__pitch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 120% 105% at 50% 50%, transparent 62%, var(--pitch-vignette) 100%);
+  pointer-events: none;
+}
+
+/* ---------- 틸트(유사 3D) — 중계 카메라 원근 ---------- */
+
+.match__pitch--tilt {
+  transform: perspective(1150px) rotateX(30deg) scale(1.06);
+  transform-origin: 50% 68%;
+  transform-style: preserve-3d;
+}
+
+/* 토큰 뱃지/이름/연출은 빌보드로 세운다 — pitch-slot 자체는 스티어링이 인라인
+   transform을 쓰므로 건드리지 않고 내부 요소에만 카운터 회전. */
+.match__pitch--tilt .player-badge,
+.match__pitch--tilt .pitch-slot__name {
+  transform: rotateX(-30deg);
+}
+
+.match__pitch--tilt .match__pop {
+  transform: translate(-50%, -120%) rotateX(-30deg);
+}
+
+.match__pitch--tilt .match__flash {
+  transform: translate(-50%, -50%) rotateX(-30deg);
+}
+
+.match__motm {
+  color: var(--accent-gold-bright);
+  border-color: var(--accent-gold);
+  font-weight: 700;
 }

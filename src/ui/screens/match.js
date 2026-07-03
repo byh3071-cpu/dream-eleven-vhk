@@ -8,6 +8,7 @@ import { simulateMatch } from '../../sim/engine.js'
 import { navigate } from '../../router.js'
 import { homePath, ifSquadPath, ifResultPath } from '../../routes.js'
 import { clearActivePlayback, buildPlaybackView } from '../matchPlayback.js'
+import { motmOf } from '../../sim/playerRatings.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 
@@ -124,6 +125,7 @@ export function renderMatch(mountEl) {
       if (phase === 'done') {
         resultLink.hidden = false
         rebuildLink.hidden = false
+        showMotm()
       }
     },
   })
@@ -151,6 +153,21 @@ export function renderMatch(mountEl) {
   rebuildLink.hidden = true
   rebuildLink.addEventListener('click', () => navigate(ifSquadPath('home')))
   playback.controlsBar.appendChild(rebuildLink)
+
+  const motmChip = document.createElement('span')
+  motmChip.className = 'chip match__motm'
+  motmChip.hidden = true
+  playback.controlsBar.appendChild(motmChip)
+  function showMotm() {
+    if (!lastMatchResult) return
+    const motm = motmOf({
+      events: lastMatchResult.events, score: lastMatchResult.score,
+      homeSquad11: homeSquad.squad11, awaySquad11: awaySquad.squad11,
+    })
+    if (!motm) return
+    motmChip.textContent = `\u2b50 MOTM ${findPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`
+    motmChip.hidden = false
+  }
 
   screen.append(topbar, playback.scoreboard, playback.stage, playback.controlsBar)
   mountEl.appendChild(screen)

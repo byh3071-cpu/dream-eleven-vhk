@@ -21,6 +21,7 @@ import { pickBestXI } from '../../career/aiLineup.js'
 import { simulateFixture } from '../../career/matchRunner.js'
 import { canBuy, bestSellOffer, priceOf, clubOfPlayer as transferClubOf, MIN_ROSTER } from '../../career/transfers.js'
 import { playerValue } from '../../career/value.js'
+import { motmOf } from '../../sim/playerRatings.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
 import {
@@ -635,7 +636,19 @@ export function renderCareerMatchday(mountEl) {
     resolvePlayer: findCareerPlayer,
     onKickoffRequest: () => playback.setResult(sim.result),
     onPhase: (phase) => {
-      if (phase === 'done') finishBtn.hidden = false
+      if (phase === 'done') {
+        finishBtn.hidden = false
+        const motm = motmOf({
+          events: sim.result.events, score: sim.result.score,
+          homeSquad11: sim.input.home.squad11, awaySquad11: sim.input.away.squad11,
+        })
+        if (motm) {
+          const chip = document.createElement('span')
+          chip.className = 'chip match__motm'
+          chip.textContent = `⭐ MOTM ${findCareerPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`
+          playback.controlsBar.appendChild(chip)
+        }
+      }
     },
   })
 

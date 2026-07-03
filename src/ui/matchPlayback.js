@@ -12,7 +12,7 @@ import { eventCommentary } from '../sim/commentary.js'
 import { possessionTeamOf } from '../sim/event-types.js'
 import { createPlayerBadge } from './components/playerBadge.js'
 import { renderPitchLines } from './components/pitchLines.js'
-import { computeTarget, computeOverrideTarget, springStep, MAX_SUBSTEP } from './steering.js'
+import { computeTarget, computeFlexTarget, computeOverrideTarget, springStep, MAX_SUBSTEP } from './steering.js'
 import {
   restState, flightToTokenState, flightToPointState,
   advanceBall, ballPosition, settleBall,
@@ -221,6 +221,15 @@ function createPlaybackController(events, refs) {
 
     const substeps = deltaSeconds === 0 ? 0 : Math.ceil(deltaSeconds / MAX_SUBSTEP)
     const subDt = substeps === 0 ? 0 : deltaSeconds / substeps
+    // 오프볼 유연성: 포제션 팀에서 볼과 가까운 아군 2명(보유자·GK 제외)이 지원 런.
+    const holderId = ballState.mode === 'held' ? ballState.holderId : null
+    const supportIds = possessionTeam === null ? [] : steeringRefs
+      .filter((r) => r.team === possessionTeam && !r.isGK && r.playerId !== holderId)
+      .map((r) => ({ id: r.playerId, d: Math.hypot(r.current.left - ballScreenPos.left, r.current.top - ballScreenPos.top) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2)
+      .map((x) => x.id)
+
     for (const ref of steeringRefs) {
       let target
       if (scorerRef && ref.team === celebration.team && !ref.isGK && ref.playerId !== celebration.scorerId) {
@@ -229,7 +238,13 @@ function createPlaybackController(events, refs) {
         const override = pullOverrides.get(ref.playerId)
         target = override
           ? computeOverrideTarget(ref.basePos, override)
-          : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
+          : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
+            supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
+            overlap: ref.team === possessionTeam && !ref.isGK
+              && (ref.team === 'A' ? ref.basePos.top > 66 : ref.basePos.top < 34)
+              && (ref.basePos.left < 32 || ref.basePos.left > 68)
+              && Math.abs(ballScreenPos.left - ref.basePos.left) < 30,
+          })
         target = {
           left: target.left + Math.sin(now / 1100 + ref.idlePhase) * 0.35,
           top: target.top + Math.cos(now / 1450 + ref.idlePhase) * 0.3,
@@ -338,10 +353,19 @@ function createPlaybackController(events, refs) {
 
     if (event.type === 'turnover_buildup') {
       lunge(refsById, event.actorId)
-      spawnMiniPop(pitchEl, event.cause === 'tackle' ? '태클!' : '인터셉트!', eventPos)
+      const tackleSpecialist = event.cause === 'tackle'
+        && resolvePlayer(event.actorId)?.traits?.includes('tackle_specialist')
+      spawnMiniPop(pitchEl, tackleSpecialist ? '⭐ 태클 장인!' : event.cause === 'tackle' ? '태클!' : '인터셉트!', eventPos)
     } else if (event.type === 'foul') {
       lunge(refsById, event.actorId)
       spawnMiniPop(pitchEl, event.dangerous ? '파울! 위험한 위치' : '파울', eventPos)
+    } else if (event.type === 'free_kick'
+        && resolvePlayer(event.takerId)?.traits?.includes('free_kick_specialist')) {
+      spawnMiniPop(pitchEl, '⭐ 프리킥 장인', eventPos)
+    } else if ((event.type === 'goal' || event.type === 'shot_saved')
+        && (event.via === 'header_corner' || event.via === 'header_fk')
+        && resolvePlayer(event.actorId)?.traits?.includes('aerial_threat')) {
+      spawnMiniPop(pitchEl, '⭐ 공중 지배', eventPos)
     } else if (event.type === 'clearance') {
       lunge(refsById, event.actorId)
       spawnMiniPop(pitchEl, '걷어냄!', eventPos)
@@ -364,20 +388,24 @@ function createPlaybackController(events, refs) {
     }
 
     const text = eventCommentary(event, resolvePlayer)
-    if (text) {
-      const line = document.createElement('div')
-      line.className = 'match__commentary-line'
-      if (event.type === 'goal') line.classList.add('match__commentary-line--goal')
-      line.textContent = text
-      commentaryEl.appendChild(line)
-      commentaryEl.scrollTop = commentaryEl.scrollHeight
-    }
+    if (text) pushLine(text, { goal: event.type === 'goal' })
+  }
+
+  function pushLine(text, { goal = false } = {}) {
+    const line = document.createElement('div')
+    line.className = 'match__commentary-line'
+    if (goal) line.classList.add('match__commentary-line--goal')
+    line.textContent = text
+    commentaryEl.appendChild(line)
+    commentaryEl.scrollTop = commentaryEl.scrollHeight
   }
 
   function tick() {
     if (!document.contains(ballEl)) { clearActivePlayback(); return }
+    if (index === 0) pushLine("0' 킥오프! 경기가 시작된다")
     if (index >= events.length) {
       clearActivePlayback()
+      pushLine(`90' 경기 종료 — 최종 스코어 ${score.home} - ${score.away}`)
       onPhaseChange('done')
       return
     }
@@ -587,6 +615,17 @@ export function buildPlaybackView({
   const stage = document.createElement('div')
   stage.className = 'match__stage'
   stage.append(pitch, commentary)
+
+  // 틸트(유사 3D) 토글 — 중계 카메라 원근. 기본 OFF(anti-float 게이트는 평면 기준).
+  const tiltBtn = document.createElement('button')
+  tiltBtn.type = 'button'
+  tiltBtn.className = 'chip'
+  tiltBtn.textContent = '입체 뷰'
+  tiltBtn.addEventListener('click', () => {
+    const on = pitch.classList.toggle('match__pitch--tilt')
+    tiltBtn.classList.toggle('chip--active', on)
+  })
+  ui.bar.appendChild(tiltBtn)
 
   return {
     scoreboard, pitch, commentary, stage, controlsBar: ui.bar,

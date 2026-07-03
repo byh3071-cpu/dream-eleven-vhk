@@ -42,6 +42,8 @@
   --pitch-grass-dark: #0e2015;
   --pitch-surface: radial-gradient(ellipse at 50% 50%, var(--pitch-grass-light) 0%, var(--pitch-grass-dark) 100%);
   --pitch-line: rgba(240, 244, 240, 0.35);
+  --pitch-stripe: rgba(255, 255, 255, 0.03); /* 잔디 모우 줄무늬 */
+  --pitch-vignette: rgba(0, 0, 0, 0.34); /* 경기장 가장자리 어둡게 - 중계 카메라 느낌 */
   --glow-gold: rgba(255, 216, 115, 0.7);
   --border-faint: rgba(255, 255, 255, 0.15);
 

@@ -6,28 +6,28 @@
 
 export const FILLER_PLAYERS = [
   {
-    id: 'filler_gk_1', name: '한도현', era: 'active', age: 19,
+    id: 'filler_gk_1', number: 12, name: '한도현', era: 'active', age: 19,
     nationality: 'kr', club: '리그 유스',
     positions: ['GK'],
     stats: { pace: 52, shooting: 15, passing: 48, dribbling: 35, defending: 62, physical: 66 },
     traits: [],
   },
   {
-    id: 'filler_gk_2', name: '서민혁', era: 'active', age: 20,
+    id: 'filler_gk_2', number: 21, name: '서민혁', era: 'active', age: 20,
     nationality: 'kr', club: '리그 유스',
     positions: ['GK'],
     stats: { pace: 50, shooting: 14, passing: 52, dribbling: 33, defending: 60, physical: 64 },
     traits: [],
   },
   {
-    id: 'filler_gk_3', name: '노윤성', era: 'active', age: 18,
+    id: 'filler_gk_3', number: 23, name: '노윤성', era: 'active', age: 18,
     nationality: 'kr', club: '리그 유스',
     positions: ['GK'],
     stats: { pace: 54, shooting: 16, passing: 46, dribbling: 36, defending: 61, physical: 63 },
     traits: [],
   },
   {
-    id: 'filler_gk_4', name: '배준서', era: 'active', age: 19,
+    id: 'filler_gk_4', number: 30, name: '배준서', era: 'active', age: 19,
     nationality: 'kr', club: '리그 유스',
     positions: ['GK'],
     stats: { pace: 51, shooting: 15, passing: 50, dribbling: 34, defending: 63, physical: 65 },
