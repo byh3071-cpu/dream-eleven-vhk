@@ -21,6 +21,7 @@ import {
   advanceBall, ballPosition, settleBall,
 } from './ballFlight.js'
 import { createDomPitchBackend } from './pitchRenderer.dom.js'
+import { getRendererPref, setRendererPref } from './rendererPref.js'
 
 // formations.js 좌표계(y=0 자기골~100 상대골)를 공유 필드의 화면 top%로 바꾼다.
 // 슬롯 배치와 이벤트(공) 위치 계산이 반드시 이 한 함수만 거치게 해서 좌우 팀이
@@ -577,7 +578,7 @@ export function buildPlaybackView({
   pushTeam(homeSquad11, homeFormation, 'A')
   pushTeam(awaySquad11, awayFormation, 'B')
 
-  const backend = createDomPitchBackend()
+  let backend = createDomPitchBackend()
   backend.mount({ tokens, teamColors })
   activeBackend = backend
 
@@ -586,8 +587,11 @@ export function buildPlaybackView({
 
   let controller = null
   let paused = false
+  let lastResult = null
+  let playbackPhase = 'idle' // 'idle'|'playing'|'paused'|'done' — 렌더러 전환 허용 판정용
 
   function setPhase(phase) {
+    playbackPhase = phase
     if (phase === 'playing') {
       paused = false
       ui.kickoffBtn.disabled = true
@@ -635,17 +639,86 @@ export function buildPlaybackView({
   stage.className = 'match__stage'
   stage.append(backend.root, commentary)
 
-  // 백엔드 전용 컨트롤(2D의 '입체 뷰' 틸트 등) — 백엔드가 자기 것만 노출.
-  for (const control of backend.extraControls ?? []) ui.bar.appendChild(control)
+  // 백엔드 전용 컨트롤(2D의 '입체 뷰' 틸트 등) — 스왑 시 함께 갈아끼운다.
+  let extraControlEls = []
+  function mountExtraControls() {
+    for (const el of extraControlEls) el.remove()
+    extraControlEls = backend.extraControls ?? []
+    for (const control of extraControlEls) ui.bar.appendChild(control)
+  }
+
+  // ---------- 렌더러 전환(goal 19): [2D 클래식 | 3D 스타디움] ----------
+  // 킥오프 전(idle)과 done에서만 허용 — 재생 중 상태 이식은 v2로 미룬다(설계 결정).
+  // 3D 모듈은 선택 시에만 dynamic import(2D 사용자 다운로드 비용 0). 실패 시 2D 폴백.
+  const modeBtns = {}
+  let swapping = false
+  async function swapTo(mode) {
+    if (swapping || (playbackPhase === 'playing' || playbackPhase === 'paused')) return
+    const current = backend.root.classList.contains('match__pitch3d') ? '3d' : '2d'
+    if (mode === current) return
+    swapping = true
+    ui.kickoffBtn.disabled = true
+    try {
+      let nextBackend
+      if (mode === '3d') {
+        const { createThreePitchBackend } = await import('./pitchRenderer.three.js')
+        nextBackend = createThreePitchBackend()
+      } else {
+        nextBackend = createDomPitchBackend()
+      }
+      nextBackend.mount({ tokens, teamColors })
+      const oldRoot = backend.root
+      backend.destroy()
+      backend = nextBackend
+      activeBackend = backend
+      stage.replaceChild(backend.root, oldRoot)
+      backend.beginPlayback()
+      mountExtraControls()
+      setRendererPref(mode)
+      // done 상태였다면 같은 이벤트 로그를 새 백엔드로 재생할 컨트롤러 재생성
+      // ('다시보기' 대기 — 자동 재생하지 않는다).
+      if (controller && lastResult) {
+        controller = makeController(lastResult)
+      }
+      Object.entries(modeBtns).forEach(([key, btn]) => btn.classList.toggle('chip--active', key === mode))
+    } catch (err) {
+      console.error('3D 렌더러 로드 실패 — 2D 유지:', err)
+    } finally {
+      swapping = false
+      ui.kickoffBtn.disabled = playbackPhase === 'playing'
+    }
+  }
+
+  const modeWrap = document.createElement('div')
+  modeWrap.className = 'match__speed-group'
+  for (const [mode, label] of [['2d', '2D'], ['3d', '3D']]) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'chip' + (mode === '2d' ? ' chip--active' : '')
+    btn.textContent = label
+    btn.addEventListener('click', () => swapTo(mode))
+    modeBtns[mode] = btn
+    modeWrap.appendChild(btn)
+  }
+  ui.bar.appendChild(modeWrap)
+  mountExtraControls()
+
+  function makeController(result) {
+    return createPlaybackController(result.events, {
+      backend, scoreEl, minuteEl, commentaryEl: commentary,
+      onPhaseChange: setPhase, steeringRefs, tacticsBySide, resolvePlayer,
+    })
+  }
+
+  // 저장된 선호가 3D면 초기 진입에서 전환(비동기 — 로드 완료 전 킥오프 disabled).
+  if (getRendererPref() === '3d') swapTo('3d')
 
   return {
     scoreboard, pitch: backend.root, commentary, stage, controlsBar: ui.bar,
     // 결과 장착(+즉시 재생 시작). IF 재대결은 새 결과로 다시 호출하면 된다.
     setResult(result) {
-      controller = createPlaybackController(result.events, {
-        backend, scoreEl, minuteEl, commentaryEl: commentary,
-        onPhaseChange: setPhase, steeringRefs, tacticsBySide, resolvePlayer,
-      })
+      lastResult = result
+      controller = makeController(result)
       controller.start()
     },
     hasController: () => controller !== null,

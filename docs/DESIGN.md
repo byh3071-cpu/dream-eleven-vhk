@@ -71,3 +71,20 @@ match.js의 이벤트 캐던스(180ms)보다 길어지면 볼 transition이 매�
 - CSS 주석 안에서 클래스 와일드카드를 `별표+슬래시`로 쓰면 주석이 조기 종료돼
   **파일 전체가 파싱 실패**한다(tokens.css :root가 rules=0이 됐던 실사고).
   주석에선 "계열"로 풀어 쓸 것.
+
+## vendored 정적 파일 예외 (goal 19 ADR — 사용자 승인)
+
+"런타임 npm 의존성 0" 원칙에 단 하나의 예외를 둔다: `assets/vendor/`의 Three.js r185
+WebGL 빌드 2파일(three.module.min.js + three.core.min.js — 최신 빌드는 분할이라 1파일이
+아님에 주의). 도입 방식은 index.html `importmap`("three" → 로컬 파일)이며 npm/번들러는
+여전히 쓰지 않는다. 3D 백엔드(pitchRenderer.three.js)가 dynamic import로만 로드하므로
+2D 사용자는 이 파일을 내려받지 않는다. 버전 업데이트는 jsDelivr에서 같은 두 파일을
+받아 교체 + verify-anti-float-3d 재통과가 절차다.
+
+## 3D 씬 색 규칙 (goal 19)
+
+canvas/WebGL은 `var()`를 해석하지 못하므로 3D 백엔드는 `getComputedStyle` 토큰 리더
+(pitchRenderer.three.js의 `tokenOf`)로 tokens.css 값을 읽는다 — 본 문서가 "canvas
+렌더러 도입 시점에만 허용"으로 예정해 둔 헬퍼의 첫 실사용. 씬 전용 색(골대/볼/조명/
+라벨 스트로크)은 `--pitch3d-*` 토큰으로 tokens.css에 등록한다(색 리터럴은 여전히
+tokens.css 밖에 못 산다 — designLint가 JS hex를 계속 감시).

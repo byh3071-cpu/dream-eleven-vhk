@@ -44,6 +44,13 @@
   --pitch-line: rgba(240, 244, 240, 0.35);
   --pitch-stripe: rgba(255, 255, 255, 0.03); /* 잔디 모우 줄무늬 */
   --pitch-vignette: rgba(0, 0, 0, 0.34); /* 경기장 가장자리 어둡게 - 중계 카메라 느낌 */
+  /* 3D 피치 씬(goal 19) — canvas는 var()를 못 읽어 getComputedStyle로 해석한다 */
+  --pitch3d-goal: #e8e8e8;
+  --pitch3d-ball: #f5f5f0;
+  --pitch3d-sky: #cfe8ff;
+  --pitch3d-ground: #0c1a0e;
+  --pitch3d-sun: #ffffff;
+  --pitch3d-label-stroke: rgba(0, 0, 0, 0.72);
   --glow-gold: rgba(255, 216, 115, 0.7);
   --border-faint: rgba(255, 255, 255, 0.15);
 

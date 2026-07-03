@@ -27,6 +27,9 @@
 </head>
 <body>
 <div id="app" class="app"></div>
-<script type="module" src="src/main.js"></script>
+<script type="importmap">
+    { "imports": { "three": "./assets/vendor/three.module.min.js" } }
+  </script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

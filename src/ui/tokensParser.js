@@ -6,7 +6,7 @@
 // 프리픽스 -> 그룹. 순서 중요: 먼저 매치되는 것이 이긴다 (--color-danger는 color,
 // --text-primary는 아래 color 예외 목록에 있어서 type이 아니라 color로 분류).
 const GROUP_RULES = [
-  { group: 'color', test: (n) => /^(bg-|accent-|text-primary$|text-dim$|border-subtle$|color-|pitch-|glow-|border-faint$|club-)/.test(n) },
+  { group: 'color', test: (n) => /^(bg-|accent-|text-primary$|text-dim$|border-subtle$|color-|pitch-|pitch3d-|glow-|border-faint$|club-)/.test(n) },
   { group: 'space', test: (n) => n.startsWith('space-') },
   { group: 'type', test: (n) => n.startsWith('text-') || n.startsWith('font-') },
   { group: 'radius', test: (n) => n.startsWith('radius-') },

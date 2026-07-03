@@ -304,3 +304,27 @@
   letter-spacing: 0.2em;
   font-style: italic;
 }
+
+/* ---------- 3D 피치(goal 19) ---------- */
+
+.match__pitch3d {
+  position: relative;
+  width: min(520px, 100%);
+  aspect-ratio: 68 / 100;
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.match__pitch3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.match__pitch3d-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
