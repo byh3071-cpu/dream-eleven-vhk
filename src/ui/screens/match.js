@@ -12,6 +12,7 @@ import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
 import { ifSquadPath, ifResultPath } from '../../routes.js'
 import { computeTarget, springStep, MAX_SUBSTEP } from '../steering.js'
+import { NARRATION_TYPES } from '../../sim/event-types.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 const SIDE_TO_TEAM = { home: 'A', away: 'B' }
@@ -33,7 +34,9 @@ const BAND_Y = { DEFENSE: 8, OWN_MID: 27, OPP_MID: 52, FINAL_THIRD: 75, BOX: 92 
 const CHANNEL_X = { LEFT: 22, CENTER: 50, RIGHT: 78 }
 
 function eventPosition(event) {
-  return { left: CHANNEL_X[event.channel], top: screenTop(BAND_Y[event.zoneTo], event.team) }
+  // pass는 channelFrom/channelTo를 갖는다(event-types.js) — 도착 채널 기준.
+  const channel = event.channelTo ?? event.channel
+  return { left: CHANNEL_X[channel], top: screenTop(BAND_Y[event.zoneTo], event.team) }
 }
 
 function checkReadiness(side) {
@@ -151,14 +154,15 @@ function clearActiveRaf() {
 }
 
 const BASE_DELAY_MS = 550
-// progression(볼이 실제로 거쳐가는 경유 밴드 — possession.js 참고)은 골/슈팅 같은 결정적
-// 이벤트보다 훨씬 짧게 보여줘야 "여러 지점을 순간이동"이 아니라 "지나간다"처럼 보인다.
-// css/match-view.css의 .match__ball transition(0.15s)보다는 길게 잡아야 이동이 끝나고
+// 서술 이벤트(pass/carry)는 골/슈팅 같은 결정적 이벤트보다 훨씬 짧게 보여줘야
+// "여러 지점을 순간이동"이 아니라 "지나간다"처럼 보인다. css/match-view.css의
+// .match__ball transition(--duration-ball-travel)보다는 길게 잡아야 이동이 끝나고
 // 다음 이동이 시작된다 — 그보다 짧으면 transition이 매번 중간에 끊긴다.
-const PROGRESSION_DELAY_MS = 180
+// (N1-c에서 타입별 페이싱 테이블로 확장 예정)
+const NARRATION_DELAY_MS = 180
 
 function delayFor(event) {
-  return (event.type === 'progression' ? PROGRESSION_DELAY_MS : BASE_DELAY_MS)
+  return (NARRATION_TYPES.includes(event.type) ? NARRATION_DELAY_MS : BASE_DELAY_MS)
 }
 
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를

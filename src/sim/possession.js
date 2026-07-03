@@ -6,6 +6,24 @@ import { BANDS, zoneDistance, pickChannel } from './zones.js'
 import { primaryPosition } from '../data/player-schema.js'
 import { mentalityAttackMult, mentalityDefendMult, pressingDefendMult, tempoAccuracyMult } from './tactics-modifiers.js'
 
+// ============================================================================
+// 아웃컴/서술 2계층 (v2 N1)
+//
+//   resolveChain = narrateChain( resolveChainOutcome(chainRng만), narrationRng만 )
+//
+// - resolveChainOutcome: 승부를 결정하는 판정부. chainRng의 draw 순서/횟수는 v1과
+//   비트 단위로 동일하다(핀 테스트 tests/sim/engine.pin.test.js가 강제). 여기서
+//   확률 구조를 바꾸는 건 N2(파울/세트피스)의 일이고, 그때는 몬테카를로 "범위"
+//   게이트 재통과가 계약이다.
+// - narrateChain: 이미 결정된 결과를 "누가 누구에게 패스해서 어떻게 전진했나"로
+//   풀어쓰는 서술부. narrationRng(deriveSeed 0x3)만 소비하고 chainRng는 시그니처에
+//   아예 없다 — 서술이 판정을 오염시키는 사고를 구조적으로 차단.
+//   홉별 성공 확률을 다시 굴리지 않는 이유: 단계 확률을 곱하면 복리 증폭 문제
+//   (실측: 25점 격차가 승률 85%+로 폭주 — 아래 divisor 주석 참고)가 재발한다.
+//   "성공/실패 여부"는 아웃컴의 창조 듀얼 1회가 결정하고, 서술은 그걸 몇 개의
+//   홉으로 보여줄지만 정한다.
+// ============================================================================
+
 // 포제션 체인 = 2번의 순차 판정(창조 -> 마무리)만 거친다.
 // 애초 설계는 buildup/creation/onTarget/save 4단계였는데, 4단계가 전부 같은 방향으로
 // 복리로 곱해지면 스탯 격차가 실제 경기력 차이보다 훨씬 과장되게 증폭된다
@@ -23,6 +41,10 @@ const FINISH_DIVISOR = 150
 const FINISH_BASELINE_SCALE = 0.39
 
 const OUTFIELD_POOL_SIZE = 4
+
+// 서술 파라미터 — 승부와 무관, "몇 개의 홉으로 보여줄지"만 좌우.
+const LATERAL_PASS_CHANCE = 0.3 // 밴드 2(중원)에서 횡패스 한 번 끼워넣을 확률
+const TACKLE_NARRATION_CHANCE = 0.5 // 턴오버를 태클로 서술할 확률(나머지는 인터셉트)
 
 function outfieldEntries(squad11) {
   return squad11.filter(({ player }) => !player.positions.includes('GK'))
@@ -47,28 +69,16 @@ function footChannelOf(channel) {
   return 'center'
 }
 
-function makeEvent(type, fields) {
-  return { type, ...fields }
-}
-
-// 볼이 실제로 거쳐가는 밴드(BANDS 인덱스)를 순서대로 이어주는 "경유" 이벤트 — 화면상
-// 렌더러가 매 이벤트마다 한 지점으로만 순간이동하던 것을 여러 개의 가까운 지점으로
-// 쪼개서 더 연속적으로 보이게 만든다. duel/rng를 새로 굴리지 않고 이미 정해진
-// 창조 단계 결과(성공/실패)를 "얼마나 촘촘하게 보여줄지"만 바꾸는 순수 서술용 이벤트라
-// 승부 확률에는 전혀 영향을 안 준다 — 몬테카를로 게이트가 그대로 통과해야 하는 이유.
-function progressionEvent(minute, teamLabel, fromBandIdx, toBandIdx, channel, actorId) {
-  return makeEvent('progression', {
-    minute, team: teamLabel, actorId,
-    zoneFrom: BANDS[fromBandIdx], zoneTo: BANDS[toBandIdx], channel,
-  })
-}
-
 function progressionScore(stats) {
   return (stats.passing + stats.dribbling) / 2
 }
 
-// possessing/defending 각각: { squad11, stamina, tactics }
-export function resolveChain({ possessing, defending, teamLabel, minute, rng, divisor }) {
+// ---------------------------------------------------------------------------
+// 아웃컴 계층 — chainRng만 소비. draw 순서(v1 그대로):
+// pickChannel(1) → creator(1) → presser(1) → 창조 roll(1)
+// → [성공 시] shooter(1) → assister(1) → 골 roll(1) → [노골 시] 궤적 roll(1)
+// ---------------------------------------------------------------------------
+export function resolveChainOutcome({ possessing, defending, teamLabel, minute, rng, divisor }) {
   const channel = pickChannel(rng, possessing.tactics?.width ?? 0.5)
 
   // 1단계 "창조" — 자기 진영에서 상대 파이널서드까지 전진해 찬스를 만든다.
@@ -95,23 +105,8 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
 
   const createChance = successChance(createScore, defendScore, divisor ?? CREATE_DIVISOR)
   if (!rollSuccess(rng, createChance)) {
-    // 창조 실패 -> 자기 진영에서 파이널서드 문턱까지는 전진했다가 거기서 끊긴다.
-    return [
-      progressionEvent(minute, teamLabel, 0, 1, channel, creator.player.id),
-      progressionEvent(minute, teamLabel, 1, 2, channel, creator.player.id),
-      makeEvent('turnover_buildup', {
-        minute, team: teamLabel, actorId: presser.player.id,
-        zoneFrom: BANDS[2], zoneTo: BANDS[3], channel,
-      }),
-    ]
+    return { teamLabel, minute, channel, creator, presser, createSuccess: false }
   }
-
-  // 창조 성공 -> 자기 진영에서 파이널서드까지 실제로 전진하는 경유 지점을 남긴다.
-  const buildupProgression = [
-    progressionEvent(minute, teamLabel, 0, 1, channel, creator.player.id),
-    progressionEvent(minute, teamLabel, 1, 2, channel, creator.player.id),
-    progressionEvent(minute, teamLabel, 2, 3, channel, creator.player.id),
-  ]
 
   // 2단계 "마무리" — 파이널서드에서 박스 안으로, 슈팅까지.
   const shooter = pickActor(possessing.squad11, 4, channel, 'shooting', rng)
@@ -130,20 +125,114 @@ export function resolveChain({ possessing, defending, teamLabel, minute, rng, di
 
   const rawFinishChance = successChance(shotQuality, saveScore, divisor ?? FINISH_DIVISOR)
   const goalChance = rawFinishChance * FINISH_BASELINE_SCALE
+  let finish
   if (rollSuccess(rng, goalChance)) {
-    return [...buildupProgression, makeEvent('goal', {
-      minute, team: teamLabel, actorId: shooter.player.id, assistId: assister.player.id,
-      zoneFrom: BANDS[3], zoneTo: BANDS[4], channel,
-    })]
+    finish = 'goal'
+  } else {
+    finish = rng() < 0.45 ? 'shot_off_target' : 'shot_saved'
   }
 
-  const outcomeType = rng() < 0.45 ? 'shot_off_target' : 'shot_saved'
-  const fields = {
-    minute, team: teamLabel, actorId: shooter.player.id,
-    zoneFrom: BANDS[3], zoneTo: BANDS[4], channel,
+  return { teamLabel, minute, channel, creator, presser, createSuccess: true, shooter, assister, gk, finish }
+}
+
+// ---------------------------------------------------------------------------
+// 서술 계층 — narrationRng만 소비. 보유자 연쇄로 이벤트를 생성하므로
+// 연속성 불변식(endHolder(eᵢ)==startHolder(eᵢ₊₁))이 사후 검증이 아니라
+// 생성 규칙 자체로 보장된다 (tests/sim/narration.test.js가 전수 확인).
+// ---------------------------------------------------------------------------
+export function narrateChain(outcome, possessing, narrationRng) {
+  const { teamLabel, minute, channel } = outcome
+  const events = []
+  const base = { minute, team: teamLabel }
+
+  // 밴드 0(자기 진영)에서 시작 보유자 선정 — 전형적으로 CB/풀백.
+  let holder = pickActor(possessing.squad11, 0, channel, 'passing', narrationRng)
+
+  const advance = (toBandIdx, candidate) => {
+    const fromBand = BANDS[toBandIdx - 1]
+    const toBand = BANDS[toBandIdx]
+    if (candidate.player.id === holder.player.id) {
+      events.push({ type: 'carry', ...base, actorId: holder.player.id, zoneFrom: fromBand, zoneTo: toBand, channel })
+    } else {
+      events.push({
+        type: 'pass', ...base, fromId: holder.player.id, toId: candidate.player.id,
+        zoneFrom: fromBand, zoneTo: toBand, channelFrom: channel, channelTo: channel,
+        style: 'ground',
+      })
+      holder = candidate
+    }
   }
-  if (outcomeType === 'shot_saved') fields.gkId = gk.player.id
-  return [...buildupProgression, makeEvent(outcomeType, fields)]
+
+  // 빌드업: 밴드 0 → 1 → 2.
+  advance(1, pickActor(possessing.squad11, 1, channel, 'passing', narrationRng))
+  advance(2, pickActor(possessing.squad11, 2, channel, 'passing', narrationRng))
+
+  // 중원에서 낮은 확률로 횡패스 한 번(같은 밴드 안) — 서술 다양성용.
+  if (narrationRng() < LATERAL_PASS_CHANCE) {
+    const mate = pickActor(possessing.squad11, 2, channel, 'passing', narrationRng)
+    if (mate.player.id !== holder.player.id) {
+      events.push({
+        type: 'pass', ...base, fromId: holder.player.id, toId: mate.player.id,
+        zoneFrom: BANDS[2], zoneTo: BANDS[2], channelFrom: channel, channelTo: channel,
+        style: 'ground',
+      })
+      holder = mate
+    }
+  }
+
+  // 파이널서드 진입은 아웃컴이 정한 creator에게 — 창조 듀얼이 그 선수 문맥으로 판정됐다.
+  advance(3, outcome.creator)
+
+  if (!outcome.createSuccess) {
+    // 창조 실패: 파이널서드 문턱에서 presser가 끊는다.
+    events.push({
+      type: 'turnover_buildup', ...base,
+      actorId: outcome.presser.player.id, victimId: outcome.creator.player.id,
+      cause: narrationRng() < TACKLE_NARRATION_CHANCE ? 'tackle' : 'interception',
+      zoneFrom: BANDS[2], zoneTo: BANDS[3], channel,
+    })
+    return events
+  }
+
+  // 마무리: creator → assister(밴드 3 횡) → shooter(3→4 키패스) → 슛.
+  // 동일 인물 중복(creator==assister 등)이면 해당 패스를 생략/carry로 대체 —
+  // v1의 자가 어시스트 아티팩트가 서술에서 자연스럽게 흡수된다.
+  const { shooter, assister, gk, finish } = outcome
+  if (assister.player.id !== holder.player.id) {
+    events.push({
+      type: 'pass', ...base, fromId: holder.player.id, toId: assister.player.id,
+      zoneFrom: BANDS[3], zoneTo: BANDS[3], channelFrom: channel, channelTo: channel,
+      style: 'ground',
+    })
+    holder = assister
+  }
+  if (shooter.player.id !== holder.player.id) {
+    events.push({
+      type: 'pass', ...base, fromId: holder.player.id, toId: shooter.player.id,
+      zoneFrom: BANDS[3], zoneTo: BANDS[4], channelFrom: channel, channelTo: channel,
+      style: 'ground',
+    })
+    holder = shooter
+  } else {
+    events.push({ type: 'carry', ...base, actorId: holder.player.id, zoneFrom: BANDS[3], zoneTo: BANDS[4], channel })
+  }
+
+  const shotBase = { ...base, actorId: shooter.player.id, zoneFrom: BANDS[4], zoneTo: BANDS[4], channel, via: 'open_play' }
+  if (finish === 'goal') {
+    events.push({ type: 'goal', ...shotBase, assistId: assister.player.id })
+  } else if (finish === 'shot_saved') {
+    events.push({ type: 'shot_saved', ...shotBase, gkId: gk.player.id })
+  } else {
+    events.push({ type: 'shot_off_target', ...shotBase })
+  }
+  return events
+}
+
+// possessing/defending 각각: { squad11, stamina, tactics }
+// v1과 같은 진입점 — 반환이 "이벤트 1개"에서 "서술+종료 이벤트 시퀀스"로 확장됐다.
+export function resolveChain({ possessing, defending, teamLabel, minute, rng, narrationRng, divisor }) {
+  const outcome = resolveChainOutcome({ possessing, defending, teamLabel, minute, rng, divisor })
+  return narrateChain(outcome, possessing, narrationRng)
 }
 
 export function decidePossession(midfieldRatingA, midfieldRatingB, rng) {
