@@ -28,6 +28,14 @@ export function screenTop(formationY, team) {
 const BAND_Y = { DEFENSE: 8, OWN_MID: 27, OPP_MID: 52, FINAL_THIRD: 75, BOX: 92 }
 const CHANNEL_X = { LEFT: 22, CENTER: 50, RIGHT: 78 }
 
+// 리플레이 컷 시작점 — From 필드가 있으면 거기서, 없으면 이벤트 지점에서 시작.
+function replayStartPos(event) {
+  const channel = event.channelFrom ?? event.channel ?? event.channelTo
+  const zone = event.zoneFrom ?? event.zoneTo
+  if (channel && zone) return { left: CHANNEL_X[channel], top: screenTop(BAND_Y[zone], event.team) }
+  return eventPosition(event)
+}
+
 function eventPosition(event) {
   const channel = event.channelTo ?? event.channel
   return { left: CHANNEL_X[channel], top: screenTop(BAND_Y[event.zoneTo], event.team) }
@@ -160,6 +168,11 @@ function createPlaybackController(events, refs) {
 
   let ballState = restState({ left: 50, top: 50 })
   let ballScreenPos = { left: 50, top: 50 }
+  // 골 리플레이: 득점 체인 구간을 0.4x로 1회 재적용(visualOnly — 점수/기록 불변).
+  let replayQueue = []
+  let replayIntro = false
+  let replayEnding = false
+  let timeScale = 1
   const pullOverrides = new Map()
   let activeFlair = null
   let celebration = null
@@ -208,7 +221,7 @@ function createPlaybackController(events, refs) {
     const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
     lastFrameTime = now
 
-    const frameMs = deltaSeconds * 1000 * speed
+    const frameMs = deltaSeconds * 1000 * speed * timeScale
     if (activeFlair) {
       activeFlair.elapsedMs += frameMs
       if (activeFlair.elapsedMs >= activeFlair.durationMs) activeFlair = null
@@ -292,9 +305,9 @@ function createPlaybackController(events, refs) {
     renderBall()
   }
 
-  function applyEvent(event) {
+  function applyEvent(event, { visualOnly = false } = {}) {
     possessionTeam = possessionTeamOf(event)
-    minuteEl.textContent = `${event.minute}'`
+    if (!visualOnly) minuteEl.textContent = `${event.minute}'`
 
     const flightMs = delayFor(event) * FLIGHT_RATIO
     if (event.type === 'pass') {
@@ -374,9 +387,11 @@ function createPlaybackController(events, refs) {
     }
 
     if (event.type === 'goal') {
-      if (event.team === 'A') score.home++
-      else score.away++
-      scoreEl.textContent = `${score.home} - ${score.away}`
+      if (!visualOnly) {
+        if (event.team === 'A') score.home++
+        else score.away++
+        scoreEl.textContent = `${score.home} - ${score.away}`
+      }
       celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
       spawnFlash(pitchEl, 'GOAL!', 'goal')
     } else if (event.type === 'yellow_card') {
@@ -387,6 +402,7 @@ function createPlaybackController(events, refs) {
       if (ref) ref.el.style.opacity = 'var(--opacity-disabled)'
     }
 
+    if (visualOnly) return // 리플레이는 화면 연출만 — 기록(커멘터리 포함)은 본 재생의 몫
     const text = eventCommentary(event, resolvePlayer)
     if (text) pushLine(text, { goal: event.type === 'goal' })
   }
@@ -400,8 +416,32 @@ function createPlaybackController(events, refs) {
     commentaryEl.scrollTop = commentaryEl.scrollHeight
   }
 
+  const REPLAY_TIME_SCALE = 0.4
+  const REPLAY_SEGMENT_MAX = 4
+
   function tick() {
     if (!document.contains(ballEl)) { clearActivePlayback(); return }
+    if (replayEnding) { timeScale = 1; replayEnding = false }
+
+    // 골 리플레이 구간 — 본 재생을 멈추고 같은 체인을 슬로모로 재적용.
+    if (replayIntro) {
+      replayIntro = false
+      spawnFlash(pitchEl, 'REPLAY', 'replay')
+      const startPos = replayStartPos(replayQueue[0])
+      ballScreenPos = { ...startPos }
+      ballState = restState(startPos)
+      timeScale = REPLAY_TIME_SCALE
+      activeTimerId = setTimeout(tick, 700 / speed)
+      return
+    }
+    if (replayQueue.length > 0) {
+      const replayEvent = replayQueue.shift()
+      applyEvent(replayEvent, { visualOnly: true })
+      if (replayQueue.length === 0) replayEnding = true
+      activeTimerId = setTimeout(tick, delayFor(replayEvent) / (speed * timeScale))
+      return
+    }
+
     if (index === 0) pushLine("0' 킥오프! 경기가 시작된다")
     if (index >= events.length) {
       clearActivePlayback()
@@ -412,12 +452,22 @@ function createPlaybackController(events, refs) {
     const event = events[index]
     applyEvent(event)
     index++
+    if (event.type === 'goal') {
+      const segment = events.filter((e) => e.chainId === event.chainId)
+      replayQueue = segment.slice(Math.max(0, segment.length - REPLAY_SEGMENT_MAX))
+      replayIntro = true
+      pushLine('📺 골 리플레이')
+    }
     activeTimerId = setTimeout(tick, delayFor(event) / speed)
   }
 
   function resetVisuals() {
     ballState = restState({ left: 50, top: 50 })
     ballScreenPos = { left: 50, top: 50 }
+    replayQueue = []
+    replayIntro = false
+    replayEnding = false
+    timeScale = 1
     pullOverrides.clear()
     activeFlair = null
     celebration = null
@@ -459,6 +509,11 @@ function createPlaybackController(events, refs) {
       speed = next
     },
     skipToEnd() {
+      replayQueue = []
+      replayIntro = false
+      replayEnding = false
+      timeScale = 1
+      pushLine(`90' 경기 종료 — 최종 스코어 ${score.home} - ${score.away}`)
       clearActivePlayback()
       while (index < events.length) {
         applyEvent(events[index])

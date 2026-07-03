@@ -22,6 +22,8 @@ import { simulateFixture } from '../../career/matchRunner.js'
 import { canBuy, bestSellOffer, priceOf, clubOfPlayer as transferClubOf, MIN_ROSTER } from '../../career/transfers.js'
 import { playerValue } from '../../career/value.js'
 import { motmOf } from '../../sim/playerRatings.js'
+import { seasonAwards } from '../../career/awards.js'
+import { computePreMatchChips } from '../../career/narrative.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
 import {
@@ -234,6 +236,38 @@ export function renderCareerHome(mountEl) {
       ? `🏆 시즌 ${save.season.number} 우승! ${champion.name}`
       : `시즌 ${save.season.number} 종료 — 우승: ${champion.name}`
     body.appendChild(banner)
+
+    // 시즌 결산 — MVP/베스트 XI/득점왕 (seasonStats 파생)
+    const awards = seasonAwards(save)
+    const summary = document.createElement('div')
+    summary.className = 'career__awards'
+    const awardsHeading = document.createElement('div')
+    awardsHeading.className = 'career__round-heading'
+    awardsHeading.textContent = '시즌 결산'
+    summary.appendChild(awardsHeading)
+    if (awards.mvp) {
+      const mvpLine = document.createElement('div')
+      mvpLine.className = 'career__history-line career__awards-mvp'
+      mvpLine.textContent = `🏅 MVP — ${findCareerPlayer(awards.mvp.playerId).name}`
+        + ` (평균 ${awards.mvp.avg.toFixed(2)}, MOTM ${awards.mvp.motm}회)`
+      summary.appendChild(mvpLine)
+    }
+    if (awards.topScorer) {
+      const tsLine = document.createElement('div')
+      tsLine.className = 'career__history-line'
+      tsLine.textContent = `⚽ 득점왕 — ${findCareerPlayer(awards.topScorer.playerId).name} ${awards.topScorer.goals}골`
+      summary.appendChild(tsLine)
+    }
+    const xiLine = document.createElement('div')
+    xiLine.className = 'career__history-line'
+    const xi = awards.bestXI
+    const xiNames = [...xi.GK, ...xi.def, ...xi.mid, ...xi.att]
+      .map((row) => findCareerPlayer(row.playerId).name)
+    if (xiNames.length > 0) {
+      xiLine.textContent = `⭐ 베스트 XI — ${xiNames.join(', ')}`
+      summary.appendChild(xiLine)
+    }
+    body.appendChild(summary)
 
     const nextSeason = document.createElement('button')
     nextSeason.type = 'button'
@@ -573,6 +607,22 @@ export function renderCareerMatchday(mountEl) {
   }
 
   const { fixture, index: fixtureIndex } = myNextFixture(save)
+  // 경기 전 서사 칩 — 이 경기에 걸린 맥락(연승/연속 골/상대전적/선두 맞대결)
+  const chips = computePreMatchChips(save, fixture)
+  if (chips.length > 0) {
+    const chipRow = document.createElement('div')
+    chipRow.className = 'career__player-chips'
+    for (const chip of chips) {
+      const el = document.createElement('span')
+      el.className = 'career__chip'
+      if (chip.tone === 'good') el.classList.add('career__chip--good')
+      if (chip.tone === 'warn') el.classList.add('career__chip--warn')
+      el.textContent = chip.text
+      chipRow.appendChild(el)
+    }
+    body.appendChild(chipRow)
+  }
+
   const matchup = document.createElement('div')
   matchup.className = 'career__next-matchup'
   matchup.append(

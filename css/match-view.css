@@ -297,3 +297,10 @@
   border-color: var(--accent-gold);
   font-weight: 700;
 }
+
+.match__flash--replay {
+  color: var(--accent-silver);
+  border-color: var(--accent-silver);
+  letter-spacing: 0.2em;
+  font-style: italic;
+}

@@ -2,7 +2,7 @@
 // Jest(node 환경)에 localStorage가 없어서 — 테스트는 Map 기반 페이크를 넣는다.
 
 const STORAGE_KEY = 'dream-eleven.career'
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 // v(n) 세이브 -> v(n+1) 세이브 순수 변환 목록. 스키마가 바뀔 때마다 여기 추가하고
 // tests/career에 이전 버전 세이브 픽스처를 고정해 회귀를 방어한다.
@@ -21,6 +21,14 @@ const MIGRATIONS = [
     contracts: Object.fromEntries(
       Object.values(save.rosters ?? {}).flat().map((playerId) => [playerId, 2])),
     transferLog: [],
+  }),
+  // v3 -> v4 (goal 16/17): 시즌 평점 집계 + 경영(신임도/재정 로그). 기존 세이브의
+  // seasonStats는 빈 값으로 시작 — 지난 경기 events가 없어 소급 불가(이후 경기부터 적립).
+  (save) => ({
+    ...save,
+    seasonStats: {},
+    boardTrust: 55,
+    financeLog: [],
   }),
 ]
 

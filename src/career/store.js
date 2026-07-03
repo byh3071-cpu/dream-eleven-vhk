@@ -15,6 +15,7 @@ import { createDraftState, applyPick, aiPickFor, isDraftDone, currentClubOf } fr
 import { initialPlayerState } from './playerState.js'
 import { finishRound as runnerFinishRound } from './matchRunner.js'
 import { topScorers } from './records.js'
+import { seasonMvp } from './awards.js'
 import { executeBuy, executeSell, runAiTransfers } from './transfers.js'
 import { computeTable } from './table.js'
 import { saveCareer, loadCareer, clearCareer } from './persistence.js'
@@ -60,6 +61,9 @@ export function newCareer({ userClubId, masterSeed, storage }) {
     budgets: {},
     contracts: {},
     transferLog: [],
+    seasonStats: {},
+    boardTrust: 55,
+    financeLog: [],
     tactics: { ...DEFAULT_TACTICS },
     lineup: null,
   }
@@ -181,10 +185,12 @@ export function enterTransferWindow(storage) {
         season: save.season.number,
         championClubId: table[0].clubId,
         topScorer: scorers[0] ?? null,
+        mvp: seasonMvp(save.seasonStats),
         myClubRank: table.findIndex((row) => row.clubId === save.userClubId) + 1,
       }],
       budgets,
       contracts,
+      seasonStats: {}, // 어워드는 history로 박제 — 집계는 시즌 단위로 리셋
     }
     // AI-AI 배경 거래 — 이적창 개장 시 1~2건(결정론 rng).
     const rng = createRng(deriveSeed(save.masterSeed, 0x7a5f + next.season.number))

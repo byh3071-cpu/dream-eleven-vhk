@@ -8,6 +8,7 @@ import { findFormation } from '../data/formations.js'
 import { DEFAULT_TACTICS } from '../sim/tactics-modifiers.js'
 import { pickBestXI } from './aiLineup.js'
 import { dampenPlayer, applyRound, stateOf } from './playerState.js'
+import { ratePlayers, motmOf } from '../sim/playerRatings.js'
 import { findCareerPlayer } from './players.js'
 
 // AI 구단 전술/포메이션 — 구단별 개성(N4에서 확장 여지).
@@ -89,6 +90,24 @@ export function finishRound(save, { precomputedMine = null } = {}) {
   }
 
   const fixtures = save.fixtures.map((f) => ({ ...f }))
+  // 시즌 어워드용 평점 적립 — 전체 events를 쥔 유일한 시점(저장 result엔 scorers만 남는다).
+  const seasonStats = { ...(save.seasonStats ?? {}) }
+  const accrueRatings = (result, input) => {
+    const args = {
+      events: result.events, score: result.score,
+      homeSquad11: input.home.squad11, awaySquad11: input.away.squad11,
+    }
+    const motm = motmOf(args)
+    for (const row of ratePlayers(args)) {
+      const prev = seasonStats[row.playerId] ?? { ratingSum: 0, matches: 0, motm: 0 }
+      seasonStats[row.playerId] = {
+        ratingSum: Math.round((prev.ratingSum + row.value) * 10) / 10,
+        matches: prev.matches + 1,
+        motm: prev.motm + (motm && motm.playerId === row.playerId ? 1 : 0),
+      }
+    }
+  }
+
   save.fixtures.forEach((fixture, index) => {
     if (fixture.round !== round || fixtures[index].result) return
     let result
@@ -102,6 +121,7 @@ export function finishRound(save, { precomputedMine = null } = {}) {
       input = sim.input
     }
     fixtures[index].result = toStoredResult(result)
+    accrueRatings(result, input)
 
     for (const side of ['home', 'away']) {
       for (const { playerId } of input.lineups[side].assignments) playedIds.push(playerId)
@@ -130,6 +150,7 @@ export function finishRound(save, { precomputedMine = null } = {}) {
   return {
     ...save,
     fixtures,
+    seasonStats,
     playerState,
     lineup,
     season: { ...save.season, currentRound: round + 1 },
