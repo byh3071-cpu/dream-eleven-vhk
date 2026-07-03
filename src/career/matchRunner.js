@@ -10,14 +10,15 @@ import { pickBestXI } from './aiLineup.js'
 import { dampenPlayer, applyRound, stateOf } from './playerState.js'
 import { ratePlayers, motmOf } from '../sim/playerRatings.js'
 import { settleRound, gameOverOf } from './finance.js'
-import { findCareerPlayer } from './players.js'
+import { resolveCareerPlayer } from './players.js'
 
 // AI 구단 전술/포메이션 — 구단별 개성(N4에서 확장 여지).
 const AI_FORMATIONS = { aurum: '4-3-3', obsidian: '4-4-2', crimson: '4-2-3-1', glacier: '4-4-2' }
 
-function lineupToSquad11(lineup, playerStates) {
+function lineupToSquad11(save, lineup) {
   return lineup.assignments.map(({ slotIndex, playerId }) => ({
-    player: dampenPlayer(findCareerPlayer(playerId), playerStates),
+    // 에이징(리졸버) 위에 컨디션(dampen) — 오버레이 2겹, 원본 불변.
+    player: dampenPlayer(resolveCareerPlayer(save, playerId), save.playerState),
     slotIndex,
   }))
 }
@@ -26,7 +27,7 @@ export function buildLineupFor(save, clubId) {
   if (clubId === save.userClubId && save.lineup) return save.lineup
   return pickBestXI({
     rosterIds: save.rosters[clubId],
-    resolvePlayer: findCareerPlayer,
+    resolvePlayer: (id) => resolveCareerPlayer(save, id),
     formationId: AI_FORMATIONS[clubId] ?? '4-4-2',
     playerStates: save.playerState,
   })
@@ -40,12 +41,12 @@ export function buildMatchInput(save, fixture) {
     clubId === save.userClubId ? (save.tactics ?? { ...DEFAULT_TACTICS }) : { ...DEFAULT_TACTICS }
   return {
     home: {
-      squad11: lineupToSquad11(homeLineup, save.playerState),
+      squad11: lineupToSquad11(save, homeLineup),
       formation: findFormation(homeLineup.formationId),
       tactics: tacticsOf(fixture.homeClubId),
     },
     away: {
-      squad11: lineupToSquad11(awayLineup, save.playerState),
+      squad11: lineupToSquad11(save, awayLineup),
       formation: findFormation(awayLineup.formationId),
       tactics: tacticsOf(fixture.awayClubId),
     },

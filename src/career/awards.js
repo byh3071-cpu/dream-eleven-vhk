@@ -2,7 +2,7 @@
 // fixture.result에 events를 저장하지 않으므로(용량), 평점은 finishRound가 경기 시뮬
 // 직후(전체 이벤트를 쥔 유일한 시점)에 적립한 것을 쓴다 — 소급 계산 불가가 설계 근거.
 
-import { findCareerPlayer } from './players.js'
+import { resolveCareerPlayer } from './players.js'
 import { topScorers } from './records.js'
 
 const MIN_MATCHES_MVP = 6
@@ -32,11 +32,11 @@ export function seasonMvp(seasonStats) {
 }
 
 // 라인별 평균 평점 상위로 4-4-2를 채운다. 인원이 모자란 라인은 있는 만큼만.
-export function seasonBestXI(seasonStats) {
+export function seasonBestXI(seasonStats, save = null) {
   const rows = averagedRows(seasonStats, MIN_MATCHES_XI)
   const byLine = { GK: [], def: [], mid: [], att: [] }
   for (const row of rows) {
-    const line = LINE_OF[findCareerPlayer(row.playerId).positions[0]]
+    const line = LINE_OF[resolveCareerPlayer(save, row.playerId).positions[0]]
     byLine[line].push(row)
   }
   return {
@@ -50,7 +50,7 @@ export function seasonBestXI(seasonStats) {
 export function seasonAwards(save) {
   return {
     mvp: seasonMvp(save.seasonStats),
-    bestXI: seasonBestXI(save.seasonStats),
+    bestXI: seasonBestXI(save.seasonStats, save),
     topScorer: topScorers(save.fixtures, { limit: 1 })[0] ?? null,
   }
 }

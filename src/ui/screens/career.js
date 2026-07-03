@@ -25,6 +25,7 @@ import { playerValue } from '../../career/value.js'
 import { motmOf } from '../../sim/playerRatings.js'
 import { seasonAwards } from '../../career/awards.js'
 import { computePreMatchChips } from '../../career/narrative.js'
+import { scoutStars } from '../../career/youthGen.js'
 import { createIcon, iconLabel } from '../components/icons.js'
 import { FINANCE, expectedRankOf } from '../../career/finance.js'
 import { POSITIONS } from '../../data/player-schema.js'
@@ -280,21 +281,21 @@ export function renderCareerHome(mountEl) {
       const mvpLine = document.createElement('div')
       mvpLine.className = 'career__history-line career__awards-mvp'
       mvpLine.replaceChildren(iconLabel('medal',
-        `MVP — ${findCareerPlayer(awards.mvp.playerId).name} (평균 ${awards.mvp.avg.toFixed(2)}, MOTM ${awards.mvp.motm}회)`))
+        `MVP — ${store.resolvePlayer(awards.mvp.playerId).name} (평균 ${awards.mvp.avg.toFixed(2)}, MOTM ${awards.mvp.motm}회)`))
       summary.appendChild(mvpLine)
     }
     if (awards.topScorer) {
       const tsLine = document.createElement('div')
       tsLine.className = 'career__history-line'
       tsLine.replaceChildren(iconLabel('soccer-ball',
-        `득점왕 — ${findCareerPlayer(awards.topScorer.playerId).name} ${awards.topScorer.goals}골`))
+        `득점왕 — ${store.resolvePlayer(awards.topScorer.playerId).name} ${awards.topScorer.goals}골`))
       summary.appendChild(tsLine)
     }
     const xiLine = document.createElement('div')
     xiLine.className = 'career__history-line'
     const xi = awards.bestXI
     const xiNames = [...xi.GK, ...xi.def, ...xi.mid, ...xi.att]
-      .map((row) => findCareerPlayer(row.playerId).name)
+      .map((row) => store.resolvePlayer(row.playerId).name)
     if (xiNames.length > 0) {
       xiLine.replaceChildren(iconLabel('star', `베스트 XI — ${xiNames.join(', ')}`))
       summary.appendChild(xiLine)
@@ -357,7 +358,7 @@ export function renderCareerHome(mountEl) {
     for (const entry of save.history) {
       const line = document.createElement('div')
       line.className = 'career__history-line'
-        const scorer = entry.topScorer ? findCareerPlayer(entry.topScorer.playerId) : null
+        const scorer = entry.topScorer ? store.resolvePlayer(entry.topScorer.playerId) : null
       line.append(
         document.createTextNode(`시즌 ${entry.season} — 우승 `),
         clubLabel(entry.championClubId, { short: true }),
@@ -415,7 +416,7 @@ export function renderCareerSquad(mountEl) {
     squadEditor.assignments = [...(save.lineup?.assignments ?? [])]
   }
   const formation = findFormation(squadEditor.formationId)
-  const rosterPlayers = save.rosters[save.userClubId].map(findCareerPlayer)
+  const rosterPlayers = save.rosters[save.userClubId].map(store.resolvePlayer)
 
   const persist = () => {
     store.setLineup({ formationId: squadEditor.formationId, assignments: [...squadEditor.assignments] })
@@ -469,7 +470,7 @@ export function renderCareerSquad(mountEl) {
   autoBtn.addEventListener('click', () => {
     const auto = pickBestXI({
       rosterIds: save.rosters[save.userClubId],
-      resolvePlayer: findCareerPlayer,
+      resolvePlayer: store.resolvePlayer,
       formationId: squadEditor.formationId,
       playerStates: save.playerState,
     })
@@ -483,7 +484,7 @@ export function renderCareerSquad(mountEl) {
   const editorBody = document.createElement('div')
   editorBody.className = 'squad-builder__body'
   editorBody.append(
-    renderPitch(squadEditor, formation, onSlotClick, { resolvePlayer: findCareerPlayer }),
+    renderPitch(squadEditor, formation, onSlotClick, { resolvePlayer: store.resolvePlayer }),
     renderListPanel(squadEditor, rosterPlayers, {
       onPlayerPick,
       onFilterChange: (value) => {
@@ -606,7 +607,7 @@ function lineupProblems(save) {
   if (lineup.assignments.length < formation.slots.length) {
     problems.push(`선발이 ${lineup.assignments.length}/${formation.slots.length}명뿐이야`)
   }
-  const players = lineup.assignments.map(({ playerId }) => findCareerPlayer(playerId))
+  const players = lineup.assignments.map(({ playerId }) => store.resolvePlayer(playerId))
   if (!players.some((p) => p.positions.includes('GK'))) {
     problems.push('골키퍼가 없어')
   }
@@ -716,7 +717,7 @@ export function renderCareerMatchday(mountEl) {
     // 구단 색/이름으로 팀 구분(사용자 지적) — IF의 홈/원정 기본색 대신 실제 구단 정체성.
     teamColors: { A: homeClub.color, B: awayClub.color },
     teamLabels: { A: homeClub.short, B: awayClub.short },
-    resolvePlayer: findCareerPlayer,
+    resolvePlayer: store.resolvePlayer,
     onKickoffRequest: () => playback.setResult(sim.result),
     onPhase: (phase) => {
       if (phase === 'done') {
@@ -728,7 +729,7 @@ export function renderCareerMatchday(mountEl) {
         if (motm) {
           const chip = document.createElement('span')
           chip.className = 'chip match__motm'
-          chip.replaceChildren(iconLabel('star', `MOTM ${findCareerPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`, { size: 14 }))
+          chip.replaceChildren(iconLabel('star', `MOTM ${store.resolvePlayer(motm.playerId).name} ${motm.value.toFixed(1)}`, { size: 14 }))
           playback.controlsBar.appendChild(chip)
         }
       }
@@ -899,7 +900,7 @@ export function renderCareerRecords(mountEl) {
     scorers.forEach((row, i) => {
       const el = document.createElement('div')
       el.className = 'career__table-row career__table-row--scorer'
-      const player = findCareerPlayer(row.playerId)
+      const player = store.resolvePlayer(row.playerId)
       const clubId = Object.keys(save.rosters).find((id) => save.rosters[id].includes(row.playerId))
       if (clubId === save.userClubId) el.classList.add('career__table-row--mine')
       const rank = document.createElement('span')
@@ -925,7 +926,7 @@ export function renderCareerRecords(mountEl) {
       if (!entry.topScorer) continue
       const line = document.createElement('div')
       line.className = 'career__history-line'
-      const player = findCareerPlayer(entry.topScorer.playerId)
+      const player = store.resolvePlayer(entry.topScorer.playerId)
       line.textContent = `시즌 ${entry.season} — ${player.name} ${entry.topScorer.goals}골`
       body.appendChild(line)
     }
@@ -938,7 +939,7 @@ export function renderCareerRecords(mountEl) {
 // ---------- /career/transfer (N5 이적창) ----------
 
 function transferRow(save, playerId, { action }) {
-  const player = findCareerPlayer(playerId)
+  const player = store.resolvePlayer(playerId)
   const row = document.createElement('div')
   row.className = 'player-row career__transfer-row'
 
@@ -999,7 +1000,7 @@ export function renderCareerTransfer(mountEl) {
     for (const entry of seasonLog.slice(-6).reverse()) {
       const line = document.createElement('div')
       line.className = 'career__history-line'
-      const player = findCareerPlayer(entry.playerId)
+      const player = store.resolvePlayer(entry.playerId)
       line.append(
         clubLabel(entry.fromClubId, { short: true }),
         document.createTextNode(` → `),
@@ -1009,6 +1010,55 @@ export function renderCareerTransfer(mountEl) {
       logBox.appendChild(line)
     }
     body.appendChild(logBox)
+  }
+
+  // ---- 유스 아카데미(goal 18): 내 후보 계약(무료) ----
+  if (save.academyCandidates.length > 0) {
+    const youthHeading = document.createElement('div')
+    youthHeading.className = 'career__round-heading'
+    youthHeading.textContent = `유스 아카데미 — 이번 시즌 후보 ${save.academyCandidates.length}명 (미계약 시 개막과 함께 소멸)`
+    body.appendChild(youthHeading)
+
+    const youthList = document.createElement('div')
+    youthList.className = 'squad-builder__list squad-builder__list--rows'
+    for (const candidate of save.academyCandidates) {
+      const row = document.createElement('div')
+      row.className = 'player-row career__transfer-row'
+      const rating = document.createElement('span')
+      rating.className = 'player-row__rating'
+      rating.textContent = String(playerOverallRating(candidate))
+      const pos = document.createElement('span')
+      pos.className = 'player-row__pos'
+      pos.textContent = candidate.positions[0]
+      const name = document.createElement('span')
+      name.className = 'player-row__name'
+      const flagImg = document.createElement('img')
+      flagImg.className = 'career__youth-flag'
+      flagImg.src = `./assets/flags/${candidate.nationality}.svg`
+      flagImg.alt = candidate.nationality
+      name.append(flagImg, document.createTextNode(` ${candidate.name} (${candidate.age}세)`))
+      const stars = document.createElement('span')
+      stars.className = 'career__youth-stars'
+      stars.textContent = '★'.repeat(scoutStars(candidate))
+      stars.title = '스카우트 평가 — 성장 잠재력 근사치'
+      const spacer = document.createElement('span')
+      const signBtn = document.createElement('button')
+      signBtn.type = 'button'
+      signBtn.className = 'chip'
+      if (save.rosters[save.userClubId].length >= 23) {
+        signBtn.textContent = '로스터 상한'
+        signBtn.disabled = true
+      } else {
+        signBtn.textContent = '계약(무료 3년)'
+        signBtn.addEventListener('click', () => {
+          store.signAcademyPlayer(candidate.id)
+          fullRerender()
+        })
+      }
+      row.append(rating, pos, name, stars, spacer, signBtn)
+      youthList.appendChild(row)
+    }
+    body.appendChild(youthList)
   }
 
   // ---- 영입: 타 구단 선수 (가치 내림차순) ----
@@ -1051,8 +1101,8 @@ export function renderCareerTransfer(mountEl) {
   const sellList = document.createElement('div')
   sellList.className = 'squad-builder__list squad-builder__list--rows'
   const mine = [...save.rosters[save.userClubId]]
-    .sort((a, b) => playerValue(findCareerPlayer(b), save.contracts?.[b] ?? 2)
-      - playerValue(findCareerPlayer(a), save.contracts?.[a] ?? 2))
+    .sort((a, b) => playerValue(store.resolvePlayer(b), save.contracts?.[b] ?? 2)
+      - playerValue(store.resolvePlayer(a), save.contracts?.[a] ?? 2))
   for (const playerId of mine) {
     const offer = bestSellOffer(save, playerId)
     const btn = document.createElement('button')

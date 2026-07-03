@@ -298,3 +298,19 @@
   color: var(--color-danger);
   max-width: 640px;
 }
+
+/* ---------- 유스 아카데미 (goal 18) ---------- */
+
+.career__youth-stars {
+  color: var(--accent-gold-bright);
+  letter-spacing: 0.1em;
+  font-size: var(--text-sm);
+}
+
+.career__youth-flag {
+  width: 16px;
+  height: 12px;
+  object-fit: cover;
+  border-radius: 2px;
+  vertical-align: baseline;
+}

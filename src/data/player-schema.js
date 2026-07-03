@@ -55,6 +55,10 @@ export function validatePlayer(player) {
   if (player.number !== undefined && (!Number.isInteger(player.number) || player.number < 1 || player.number > 99)) {
     errors.push('number는 지정 시 1~99 정수여야 함')
   }
+  // potential/nationality/flag(옵션): 유스 생성 선수(goal 18) 전용 메타.
+  if (player.potential !== undefined && (!Number.isInteger(player.potential) || player.potential < 1 || player.potential > 99)) {
+    errors.push('potential은 지정 시 1~99 정수여야 함')
+  }
   if (!ERAS.includes(player.era)) errors.push(`era는 ${ERAS.join('/')} 중 하나여야 함: ${player.era}`)
   if (!Array.isArray(player.positions) || player.positions.length === 0) {
     errors.push('positions는 비어있지 않은 배열이어야 함')

@@ -5,7 +5,7 @@
 // 떨어뜨릴 수 없고, 내 로스터 상한은 23명. "생성 선수 보충" 없이도 리그가 유지되는
 // 근거가 이 가드다(로드맵의 생성기 항목을 대체 — goal 문서에 기록).
 
-import { findCareerPlayer } from './players.js'
+import { resolveCareerPlayer } from './players.js'
 import { playerValue } from './value.js'
 import { CLUBS } from './clubs.js'
 
@@ -27,23 +27,23 @@ export function clubOfPlayer(save, playerId) {
 }
 
 export function priceOf(save, playerId) {
-  return playerValue(findCareerPlayer(playerId), save.contracts?.[playerId] ?? 2)
+  return playerValue(resolveCareerPlayer(save, playerId), save.contracts?.[playerId] ?? 2)
 }
 
 function gkCount(save, clubId) {
-  return save.rosters[clubId].filter((id) => findCareerPlayer(id).positions.includes('GK')).length
+  return save.rosters[clubId].filter((id) => resolveCareerPlayer(save, id).positions.includes('GK')).length
 }
 
 function lineCounts(save, clubId) {
   const counts = { gk: 0, def: 0, mid: 0, att: 0 }
-  for (const id of save.rosters[clubId]) counts[LINE_OF[findCareerPlayer(id).positions[0]]]++
+  for (const id of save.rosters[clubId]) counts[LINE_OF[resolveCareerPlayer(save, id).positions[0]]]++
   return counts
 }
 
 // 판매 측이 이 선수를 놓아줄 수 있는가(구조 가드).
 function canRelease(save, clubId, playerId) {
   if (save.rosters[clubId].length - 1 < MIN_ROSTER) return false
-  const isGk = findCareerPlayer(playerId).positions.includes('GK')
+  const isGk = resolveCareerPlayer(save, playerId).positions.includes('GK')
   if (isGk && gkCount(save, clubId) - 1 < MIN_GK) return false
   return true
 }
@@ -90,7 +90,7 @@ export function bestSellOffer(save, playerId) {
   if (clubOfPlayer(save, playerId) !== save.userClubId) return null
   if (!canRelease(save, save.userClubId, playerId)) return null
   const fee = priceOf(save, playerId)
-  const line = LINE_OF[findCareerPlayer(playerId).positions[0]]
+  const line = LINE_OF[resolveCareerPlayer(save, playerId).positions[0]]
   const candidates = CLUBS.map((c) => c.id)
     .filter((clubId) => clubId !== save.userClubId)
     .filter((clubId) => (save.budgets?.[clubId] ?? 0) >= fee)
@@ -123,7 +123,7 @@ export function runAiTransfers(save, rng) {
     const thinnest = ['def', 'mid', 'att'].sort((a, b) => counts[a] - counts[b])[0]
     const targets = aiClubs.filter((id) => id !== buyer)
       .flatMap((clubId) => next.rosters[clubId]
-        .filter((pid) => LINE_OF[findCareerPlayer(pid).positions[0]] === thinnest)
+        .filter((pid) => LINE_OF[resolveCareerPlayer(next, pid).positions[0]] === thinnest)
         .filter((pid) => canRelease(next, clubId, pid))
         .map((pid) => ({ pid, clubId, price: priceOf(next, pid) })))
       .filter(({ price }) => price <= (next.budgets[buyer] ?? 0))

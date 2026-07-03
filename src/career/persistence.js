@@ -2,7 +2,7 @@
 // Jest(node 환경)에 localStorage가 없어서 — 테스트는 Map 기반 페이크를 넣는다.
 
 const STORAGE_KEY = 'dream-eleven.career'
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 // v(n) 세이브 -> v(n+1) 세이브 순수 변환 목록. 스키마가 바뀔 때마다 여기 추가하고
 // tests/career에 이전 버전 세이브 픽스처를 고정해 회귀를 방어한다.
@@ -31,6 +31,13 @@ const MIGRATIONS = [
     financeLog: [],
     debtRounds: 0,
     gameOverReason: null,
+  }),
+  // v4 -> v5 (goal 18): 유스 아카데미. 에이징은 파생 계산이라 필드가 필요 없다 —
+  // 세이브에 선수 객체가 들어가는 유일한 예외(youthPlayers)와 아카데미 후보만 추가.
+  (save) => ({
+    ...save,
+    youthPlayers: {},
+    academyCandidates: [],
   }),
 ]
 

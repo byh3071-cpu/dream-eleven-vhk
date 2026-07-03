@@ -9,7 +9,8 @@
 //   'transfer' — 시즌 사이 이적창 (영입/판매/AI 거래 후 다음 시즌 시작)
 
 import { CLUBS } from './clubs.js'
-import { CAREER_POOL, findCareerPlayer } from './players.js'
+import { CAREER_POOL, findCareerPlayer, resolveCareerPlayer } from './players.js'
+import { generateYouth } from './youthGen.js'
 import { generateFixtures, totalRounds } from './schedule.js'
 import { createDraftState, applyPick, aiPickFor, isDraftDone, currentClubOf } from './draft.js'
 import { initialPlayerState } from './playerState.js'
@@ -36,6 +37,11 @@ export function initCareer(storage) {
 
 export function getCareer() {
   return current
+}
+
+// 현 세이브 바운드 선수 리졸버 — 화면/러너 주입용(유스+에이징 반영).
+export function resolvePlayer(id) {
+  return resolveCareerPlayer(current, id)
 }
 
 export function isCorrupted() {
@@ -67,6 +73,8 @@ export function newCareer({ userClubId, masterSeed, storage }) {
     financeLog: [],
     debtRounds: 0,
     gameOverReason: null,
+    youthPlayers: {},
+    academyCandidates: [],
     tactics: { ...DEFAULT_TACTICS },
     lineup: null,
   }
@@ -201,7 +209,52 @@ export function enterTransferWindow(storage) {
     // AI-AI 배경 거래 — 이적창 개장 시 1~2건(결정론 rng).
     const rng = createRng(deriveSeed(save.masterSeed, 0x7a5f + next.season.number))
     next = runAiTransfers(next, rng)
-    return next
+
+    // 유스 아카데미(goal 18): 구단별 후보 생성(내 구단 3명, AI 2명 중 최고 1명 자동 영입).
+    const youthRng = createRng(deriveSeed(save.masterSeed, 0x70d7 + next.season.number))
+    const candidates = []
+    let youthIndex = 0
+    const youthPlayers = { ...next.youthPlayers }
+    const youthRosters = { ...next.rosters }
+    const youthContracts = { ...next.contracts }
+    const youthState = { ...next.playerState }
+    for (const clubId of clubIds) {
+      const mine = clubId === next.userClubId
+      const count = mine ? 3 : 2
+      const clubCandidates = []
+      for (let i = 0; i < count; i++) {
+        clubCandidates.push(generateYouth({ season: next.season.number, index: youthIndex++, rng: youthRng }))
+      }
+      if (mine) {
+        candidates.push(...clubCandidates.map((c) => ({ ...c, clubId })))
+      } else if (youthRosters[clubId].length < 23) {
+        // AI는 potential 최고 1명 자동 계약(3년)
+        const best = [...clubCandidates].sort((a, b) => b.potential - a.potential)[0]
+        youthPlayers[best.id] = best
+        youthRosters[clubId] = [...youthRosters[clubId], best.id]
+        youthContracts[best.id] = 3
+        youthState[best.id] = initialPlayerState()
+      }
+    }
+    return { ...next, academyCandidates: candidates, youthPlayers, rosters: youthRosters, contracts: youthContracts, playerState: youthState }
+  }, storage)
+}
+
+// 아카데미 후보 계약(무료, 3년) — 이적창에서만. 로스터 상한 가드.
+export function signAcademyPlayer(candidateId, storage) {
+  return updateCareer((save) => {
+    const candidate = save.academyCandidates.find((c) => c.id === candidateId)
+    if (!candidate || save.phase !== 'transfer') return save
+    if (save.rosters[save.userClubId].length >= 23) return save
+    const { clubId: _drop, ...youth } = candidate
+    return {
+      ...save,
+      youthPlayers: { ...save.youthPlayers, [youth.id]: youth },
+      rosters: { ...save.rosters, [save.userClubId]: [...save.rosters[save.userClubId], youth.id] },
+      contracts: { ...save.contracts, [youth.id]: 3 },
+      playerState: { ...save.playerState, [youth.id]: initialPlayerState() },
+      academyCandidates: save.academyCandidates.filter((c) => c.id !== candidateId),
+    }
   }, storage)
 }
 
@@ -226,6 +279,7 @@ export function startSeasonAfterTransfer(storage) {
       Object.entries(save.contracts).map(([id, years]) => [id, years === 0 ? 1 : years]))
     return {
       ...save,
+      academyCandidates: [], // 미영입 유스 후보는 개막과 함께 소멸
       phase: 'season',
       fixtures: generateFixtures(clubIds),
       playerState,

@@ -3,7 +3,7 @@
 
 import { CLUBS } from '../../src/career/clubs.js'
 import { FILLER_PLAYERS } from '../../src/career/fillerPlayers.js'
-import { CAREER_POOL, findCareerPlayer } from '../../src/career/players.js'
+import { CAREER_POOL, findCareerPlayer, resolveCareerPlayer } from '../../src/career/players.js'
 import { generateFixtures, fixturesOfRound, totalRounds } from '../../src/career/schedule.js'
 import { runDraft, createDraftState, applyPick, currentClubOf } from '../../src/career/draft.js'
 import { topScorers } from '../../src/career/records.js'
@@ -343,13 +343,16 @@ describe('N4/N5 — 시즌 전환(이적창) + 득점왕', () => {
     expect(save.history[0].topScorer.playerId).toBe(season1Top.playerId)
     const totalBudget = Object.values(save.budgets).reduce((a, b) => a + b, 0)
     expect(totalBudget).toBe(totalBefore + 115)
-    // 로스터 연속성(재드래프트 폐지): AI-AI 이적 몇 건 외에는 유지 — 총원 76 불변
-    expect(Object.values(save.rosters).flat()).toHaveLength(76)
+    // 로스터 연속성(재드래프트 폐지): 기존 76명 전원 잔류 + AI 유스 자동 영입(3구단×1)
+    const allIds = Object.values(save.rosters).flat()
+    const originals = allIds.filter((id) => !id.startsWith('youth_'))
+    expect(originals).toHaveLength(76)
+    expect(allIds.filter((id) => id.startsWith('youth_'))).toHaveLength(3)
     expect(save.rosters[save.userClubId].length).toBeGreaterThanOrEqual(15)
-    // 계약 연차 -1 (단, AI 이적으로 옮긴 선수는 새 3년 계약이 정상)
+    // 계약 연차 -1 (단, AI 이적자와 신규 유스는 새 3년 계약이 정상)
     const transferred = new Set(save.transferLog.map((t) => t.playerId))
     const untouchedYears = Object.entries(save.contracts)
-      .filter(([id]) => !transferred.has(id))
+      .filter(([id]) => !transferred.has(id) && !id.startsWith('youth_'))
       .map(([, years]) => years)
     expect(Math.max(...untouchedYears)).toBeLessThanOrEqual(2)
     for (const id of transferred) expect(save.contracts[id]).toBe(3)
@@ -401,6 +404,7 @@ describe('N5 — 가치/이적 규칙', () => {
     save = store.enterTransferWindow(storage)
 
     const before = Object.values(save.budgets).reduce((a, b) => a + b, 0)
+    const totalAfterWindowOpen = Object.values(save.rosters).flat().length
     const otherClub = Object.keys(save.rosters).find((id) => id !== save.userClubId)
     const target = save.rosters[otherClub].find((id) => canBuy(save, id).ok)
     expect(target).toBeTruthy()
@@ -413,7 +417,7 @@ describe('N5 — 가치/이적 규칙', () => {
     save = store.sellPlayer(sellable, storage)
     expect(save.rosters[save.userClubId]).not.toContain(sellable)
 
-    expect(Object.values(save.rosters).flat()).toHaveLength(76)
+    expect(Object.values(save.rosters).flat()).toHaveLength(totalAfterWindowOpen)
     expect(Object.values(save.budgets).reduce((a, b) => a + b, 0)).toBe(before)
     expect(save.transferLog.length).toBeGreaterThanOrEqual(2)
   })
@@ -430,7 +434,7 @@ describe('N5 — 가치/이적 규칙', () => {
     expect(a.transferLog).toEqual(b.transferLog)
     for (const ids of Object.values(a.rosters)) {
       expect(ids.length).toBeGreaterThanOrEqual(15)
-      const gks = ids.filter((id) => findCareerPlayer(id).positions.includes('GK'))
+      const gks = ids.filter((id) => resolveCareerPlayer(a, id).positions.includes('GK'))
       expect(gks.length).toBeGreaterThanOrEqual(2)
     }
   })

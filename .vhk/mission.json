@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 19-2차: 3D 모션(절차적 로우폴리 휴머노이드 — 달리기/킥/셀레브레이션) + 아이콘 통일(Lucide ISC 인라인 + 자체 축구공 SVG)",
+  "objective": "goal 18(N7): 유스 아카데미 + 파생 에이징 — resolveCareerPlayer(save,id) 3계층, developPlayer 시즌 파생(저장 0), youthGen 16개국, 이적창 아카데미, 세이브 v5, 3시즌 성장 게이트",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T08:41:02.667Z"
+  "updatedAt": "2026-07-03T09:38:13.300Z"
 }

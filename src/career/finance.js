@@ -4,7 +4,7 @@
 
 import { playerValue } from './value.js'
 import { playerOverallRating } from '../sim/teamStrength.js'
-import { findCareerPlayer } from './players.js'
+import { resolveCareerPlayer } from './players.js'
 import { computeTable } from './table.js'
 
 export const FINANCE = {
@@ -24,13 +24,13 @@ export const FINANCE = {
 // 시즌 주급의 라운드 분할(정수 M) — 반올림 오차는 게임적으로 무시.
 export function roundWageOf(save, clubId) {
   const seasonWage = save.rosters[clubId].reduce((sum, playerId) =>
-    sum + Math.round(playerValue(findCareerPlayer(playerId), save.contracts?.[playerId] ?? 2) * FINANCE.WAGE_RATE), 0)
+    sum + Math.round(playerValue(resolveCareerPlayer(save, playerId), save.contracts?.[playerId] ?? 2) * FINANCE.WAGE_RATE), 0)
   return Math.max(1, Math.round(seasonWage / FINANCE.ROUNDS_PER_SEASON))
 }
 
 // 전력 기대 순위 — 로스터 평균 레이팅 순위(신임도의 기준선).
 export function expectedRankOf(save, clubId) {
-  const avgOf = (ids) => ids.reduce((s, id) => s + playerOverallRating(findCareerPlayer(id)), 0) / ids.length
+  const avgOf = (ids) => ids.reduce((s, id) => s + playerOverallRating(resolveCareerPlayer(save, id)), 0) / ids.length
   const ranked = Object.entries(save.rosters)
     .map(([id, ids]) => ({ id, avg: avgOf(ids) }))
     .sort((a, b) => b.avg - a.avg || a.id.localeCompare(b.id))

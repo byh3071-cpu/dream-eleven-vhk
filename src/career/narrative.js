@@ -3,7 +3,7 @@
 // 재미 요소 C). 톤: good(우리 호재)/warn(경계)/info(중립).
 
 import { computeTable } from './table.js'
-import { findCareerPlayer } from './players.js'
+import { resolveCareerPlayer } from './players.js'
 import { findClub } from './clubs.js'
 
 // 클럽의 소화된 경기를 라운드 순으로 [{round, result, scorers}]로 정리.
@@ -66,7 +66,7 @@ export function computePreMatchChips(save, fixture) {
     }
     if (best) {
       chips.push({
-        text: `${findCareerPlayer(best.playerId).name} ${best.streak}경기 연속 골`,
+        text: `${resolveCareerPlayer(save, best.playerId).name} ${best.streak}경기 연속 골`,
         tone: clubId === myClubId ? 'good' : 'warn',
       })
     }
