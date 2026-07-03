@@ -194,3 +194,48 @@
 .career__chip--good { color: var(--color-success); border-color: var(--color-success); }
 .career__chip--warn { color: var(--color-warning); border-color: var(--color-warning); }
 .career__chip--danger { color: var(--color-danger); border-color: var(--color-danger); }
+
+/* ---------- 드래프트/기록 (N4) ---------- */
+
+.career__draft-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.career__draft-order {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.career__draft-log {
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  padding: var(--space-8) var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.career__history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.career__history-line {
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.career__table-row--scorer {
+  grid-template-columns: 2rem 1fr 5rem 3.5rem;
+}

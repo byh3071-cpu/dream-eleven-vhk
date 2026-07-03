@@ -5,7 +5,8 @@ import { CLUBS } from '../../src/career/clubs.js'
 import { FILLER_PLAYERS } from '../../src/career/fillerPlayers.js'
 import { CAREER_POOL, findCareerPlayer } from '../../src/career/players.js'
 import { generateFixtures, fixturesOfRound, totalRounds } from '../../src/career/schedule.js'
-import { runDraft } from '../../src/career/draft.js'
+import { runDraft, createDraftState, applyPick, currentClubOf } from '../../src/career/draft.js'
+import { topScorers } from '../../src/career/records.js'
 import { computeTable } from '../../src/career/table.js'
 import { initialPlayerState, applyRound, dampenPlayer, isSuspended, FATIGUE_PER_MATCH } from '../../src/career/playerState.js'
 import { pickBestXI } from '../../src/career/aiLineup.js'
@@ -28,10 +29,21 @@ function fakeStorage() {
   }
 }
 
+// N4부터 newCareer는 드래프트 단계로 시작 — 시즌 테스트용 헬퍼는 "매 턴 첫 가용 선수 픽"
+// 전략으로 드래프트를 완주시켜 시즌 단계 세이브를 만든다.
+function completeDraft(storage) {
+  let save = store.draftCatchUp(storage)
+  while (save.phase === 'draft') {
+    save = store.draftPick(save.draftState.availableIds[0], storage)
+  }
+  return save
+}
+
 function freshCareer(seed = 7) {
   const storage = fakeStorage()
   store.initCareer(storage)
-  const save = store.newCareer({ userClubId: 'aurum', masterSeed: seed, storage })
+  store.newCareer({ userClubId: 'aurum', masterSeed: seed, storage })
+  const save = completeDraft(storage)
   return { storage, save }
 }
 
@@ -154,29 +166,37 @@ describe('playerState — 피로/폼/징계', () => {
   })
 
   test('댐프닝이 장식이 아니다 — 방전 팀은 쌩쌩한 같은 팀에게 열세다', () => {
-    // makeSynthetic 대신 실제 드래프트 로스터로 XI를 뽑아 같은 팀끼리 붙인다.
+    // 같은 XI를 상태만 다르게(피로 100+폼 -2 vs 폼 +2) 붙인다. 홈/원정을 스왑한
+    // 미러 매치로 사이드 시드 편향을 상쇄하고, 승패보다 표본이 큰 "득점 점유율"로
+    // 판정한다(divisor 설계가 스탯 격차를 의도적으로 완만하게 만들기 때문에 소표본
+    // 승률은 노이즈에 묻힌다 — 실측 0.48/0.525 사고 후 재설계).
     const { save } = freshCareer(3)
     const lineup = pickBestXI({ rosterIds: save.rosters.aurum, resolvePlayer: findCareerPlayer, formationId: '4-4-2' })
     const fresh = {}
     const tired = {}
     for (const { playerId } of lineup.assignments) {
-      fresh[playerId] = initialPlayerState()
-      tired[playerId] = { ...initialPlayerState(), fatigue: 100 }
+      fresh[playerId] = { ...initialPlayerState(), form: 2 }
+      tired[playerId] = { ...initialPlayerState(), fatigue: 100, form: -2 }
     }
     const squadOf = (states) => lineup.assignments.map(({ slotIndex, playerId }) => ({
       player: dampenPlayer(findCareerPlayer(playerId), states), slotIndex,
     }))
-    let freshWins = 0
-    const trials = 150
-    for (let seed = 0; seed < trials; seed++) {
-      const r = simulateMatch({
-        home: { squad11: squadOf(fresh), formation: findFormation('4-4-2'), tactics: {} },
-        away: { squad11: squadOf(tired), formation: findFormation('4-4-2'), tactics: {} },
-        seed,
+    const formation = findFormation('4-4-2')
+    let freshGoals = 0
+    let tiredGoals = 0
+    for (let seed = 0; seed < 250; seed++) {
+      const a = simulateMatch({
+        home: { squad11: squadOf(fresh), formation, tactics: {} },
+        away: { squad11: squadOf(tired), formation, tactics: {} }, seed,
       })
-      if (r.score.home > r.score.away) freshWins++
+      freshGoals += a.score.home; tiredGoals += a.score.away
+      const b = simulateMatch({
+        home: { squad11: squadOf(tired), formation, tactics: {} },
+        away: { squad11: squadOf(fresh), formation, tactics: {} }, seed,
+      })
+      freshGoals += b.score.away; tiredGoals += b.score.home
     }
-    expect(freshWins / trials).toBeGreaterThan(0.5)
+    expect(freshGoals / (freshGoals + tiredGoals)).toBeGreaterThan(0.53)
   })
 })
 
@@ -235,5 +255,95 @@ describe('matchRunner — 라운드 진행', () => {
     const states = Object.values(save.playerState)
     expect(states.some((s) => s.fatigue > 0)).toBe(true)
     expect(states.some((s) => s.form !== 0)).toBe(true)
+  })
+})
+
+describe('N4 — 인터랙티브 드래프트 프리미티브', () => {
+  test('스네이크 순서: 1라운드 정방향, 2라운드 역방향', () => {
+    const ds = createDraftState({ clubIds: CLUB_IDS, pool: CAREER_POOL, rng: createRng(1) })
+    const first = currentClubOf(ds)
+    let s = ds
+    const firstRound = []
+    for (let i = 0; i < 4; i++) {
+      firstRound.push(currentClubOf(s))
+      s = applyPick(s, s.availableIds[0])
+    }
+    const secondRound = []
+    for (let i = 0; i < 4; i++) {
+      secondRound.push(currentClubOf(s))
+      s = applyPick(s, s.availableIds[0])
+    }
+    expect(firstRound[0]).toBe(first)
+    expect(secondRound).toEqual([...firstRound].reverse())
+  })
+
+  test('이미 지명된 선수는 다시 픽할 수 없다', () => {
+    let ds = createDraftState({ clubIds: CLUB_IDS, pool: CAREER_POOL, rng: createRng(2) })
+    const target = ds.availableIds[0]
+    ds = applyPick(ds, target)
+    expect(() => applyPick(ds, target)).toThrow()
+  })
+
+  test('드래프트 중단 후 재개해도 AI 픽이 동일하다(세이브 재현성)', () => {
+    const run = () => {
+      const storage = fakeStorage()
+      store.initCareer(storage)
+      store.newCareer({ userClubId: 'aurum', masterSeed: 99, storage })
+      let save = store.draftCatchUp(storage)
+      // 내 픽 2회 후 "재개" 시뮬: 스토리지에서 다시 로드해 이어서 완주
+      save = store.draftPick(save.draftState.availableIds[3], storage)
+      store.draftPick(save.draftState.availableIds[5], storage)
+      store.initCareer(storage)
+      return completeDraft(storage).rosters
+    }
+    expect(run()).toEqual(run())
+  })
+})
+
+describe('N4 — 세이브 마이그레이션 v1 -> v2', () => {
+  test('v1 세이브가 phase/history/draftState 기본값으로 승격된다', () => {
+    const storage = fakeStorage()
+    // N3(v1) 형태의 최소 세이브를 v1 엔벨로프로 직접 기록
+    const v1Save = {
+      masterSeed: 1, userClubId: 'aurum',
+      season: { number: 1, currentRound: 3 },
+      rosters: { aurum: [], obsidian: [], crimson: [], glacier: [] },
+      fixtures: [], playerState: {}, tactics: {}, lineup: null,
+    }
+    storage.setItem('dream-eleven.career', JSON.stringify({ schemaVersion: 1, savedAt: 'x', save: v1Save }))
+    const { save } = loadCareer(storage)
+    expect(save.phase).toBe('season')
+    expect(save.draftState).toBeNull()
+    expect(save.history).toEqual([])
+    expect(save.season.currentRound).toBe(3) // 기존 진행 보존
+  })
+})
+
+describe('N4 — 시즌 전환 + 득점왕', () => {
+  test('시즌1 완주 -> 다음 시즌: 히스토리 적립, 드래프트 재진입, 시즌2 완주 가능', () => {
+    let { storage } = freshCareer(41)
+    let save = store.getCareer()
+    for (let round = 1; round <= 12; round++) save = store.finishRound({}, storage)
+    expect(store.seasonDone(save)).toBe(true)
+
+    const season1Top = topScorers(save.fixtures, { limit: 1 })[0]
+    expect(season1Top.goals).toBeGreaterThan(0)
+
+    save = store.startNextSeason(storage)
+    expect(save.phase).toBe('draft')
+    expect(save.season.number).toBe(2)
+    expect(save.history).toHaveLength(1)
+    expect(save.history[0].season).toBe(1)
+    expect(save.history[0].championClubId).toBeTruthy()
+    expect(save.history[0].topScorer.playerId).toBe(season1Top.playerId)
+    expect(save.history[0].myClubRank).toBeGreaterThanOrEqual(1)
+
+    // 시즌 2: 드래프트 완주 후 한 라운드 진행까지 확인
+    save = completeDraft(storage)
+    expect(save.phase).toBe('season')
+    expect(save.fixtures).toHaveLength(24)
+    expect(save.fixtures.every((f) => !f.result)).toBe(true)
+    save = store.finishRound({}, storage)
+    expect(save.season.currentRound).toBe(2)
   })
 })

@@ -15,6 +15,8 @@ export const ROUTE_PATTERNS = Object.freeze({
   careerTable: '/career/table',
   careerSchedule: '/career/schedule',
   careerMatchday: '/career/matchday',
+  careerDraft: '/career/draft',
+  careerRecords: '/career/records',
   styleguide: '/styleguide',
 })
 
@@ -64,4 +66,12 @@ export function careerSchedulePath() {
 
 export function careerMatchdayPath() {
   return '/career/matchday'
+}
+
+export function careerDraftPath() {
+  return '/career/draft'
+}
+
+export function careerRecordsPath() {
+  return '/career/records'
 }

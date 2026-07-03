@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "v2 N3(goal 13): 커리어 슬라이스 1 — 드래프트 판타지 리그 4구단, 12라운드 시즌, 순위표, localStorage 세이브, 피로/폼/징계, UI 3층 분리 재사용",
+  "objective": "v2 N4(goal 14): 커리어 슬라이스 2 — 인터랙티브 스네이크 드래프트(phase 저장/재개), 시즌 전환(재드래프트+히스토리), 득점왕 기록, 세이브 스키마 v2 마이그레이션",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T03:36:33.079Z"
+  "updatedAt": "2026-07-03T04:08:12.917Z"
 }

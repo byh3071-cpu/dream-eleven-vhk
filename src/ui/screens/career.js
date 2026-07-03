@@ -5,13 +5,17 @@
 import { navigate } from '../../router.js'
 import {
   careerPath, careerSquadPath, careerTacticsPath, careerTablePath,
-  careerSchedulePath, careerMatchdayPath, homePath,
+  careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, homePath,
 } from '../../routes.js'
 import { CLUBS, findClub } from '../../career/clubs.js'
 import { findCareerPlayer } from '../../career/players.js'
 import * as store from '../../career/store.js'
 import { computeTable } from '../../career/table.js'
 import { fixturesOfRound, totalRounds } from '../../career/schedule.js'
+import { topScorers } from '../../career/records.js'
+import { currentClubOf } from '../../career/draft.js'
+import { createPlayerCard } from '../components/playerCard.js'
+import { playerOverallRating } from '../../sim/teamStrength.js'
 import { stateOf, isSuspended } from '../../career/playerState.js'
 import { pickBestXI } from '../../career/aiLineup.js'
 import { simulateFixture } from '../../career/matchRunner.js'
@@ -68,11 +72,18 @@ function clubLabel(clubId, { short = false } = {}) {
   return wrap
 }
 
-function guardNoSave() {
+// 세이브 없으면 홈으로, 드래프트 진행 중이면(시즌 화면 접근 시) 드래프트로 보낸다.
+function guardNoSave({ allowDraftPhase = false } = {}) {
   const save = store.getCareer()
-  if (save) return save
-  navigate(careerPath())
-  return null
+  if (!save) {
+    navigate(careerPath())
+    return null
+  }
+  if (!allowDraftPhase && save.phase === 'draft') {
+    navigate(careerDraftPath())
+    return null
+  }
+  return save
 }
 
 function navChips(current) {
@@ -80,7 +91,8 @@ function navChips(current) {
   wrap.className = 'career__nav'
   const items = [
     ['홈', careerPath()], ['스쿼드', careerSquadPath()], ['전술', careerTacticsPath()],
-    ['일정', careerSchedulePath()], ['순위표', careerTablePath()], ['매치데이', careerMatchdayPath()],
+    ['일정', careerSchedulePath()], ['순위표', careerTablePath()], ['기록', careerRecordsPath()],
+    ['매치데이', careerMatchdayPath()],
   ]
   for (const [label, path] of items) {
     const chip = document.createElement('button')
@@ -189,6 +201,11 @@ export function renderCareerHome(mountEl) {
     renderNewCareer(mountEl)
     return
   }
+  if (save.phase === 'draft') {
+    navigate(careerDraftPath())
+    renderCareerDraft(mountEl)
+    return
+  }
 
   const club = findClub(save.userClubId)
   const screen = screenShell(`커리어 — ${club.name}`, { backTo: homePath(), backLabel: '← 모드 선택' })
@@ -206,16 +223,29 @@ export function renderCareerHome(mountEl) {
       : `시즌 ${save.season.number} 종료 — 우승: ${champion.name}`
     body.appendChild(banner)
 
+    const nextSeason = document.createElement('button')
+    nextSeason.type = 'button'
+    nextSeason.className = 'chip chip--active'
+    nextSeason.textContent = `시즌 ${save.season.number + 1} 드래프트 시작 →`
+    nextSeason.addEventListener('click', () => {
+      store.startNextSeason()
+      squadEditor = null
+      navigate(careerDraftPath())
+      mountEl.replaceChildren()
+      renderCareerDraft(mountEl)
+    })
+
     const reset = document.createElement('button')
     reset.type = 'button'
-    reset.className = 'chip'
-    reset.textContent = '커리어 초기화(새 드래프트)'
+    reset.className = 'link-button'
+    reset.textContent = '커리어 초기화(처음부터)'
     reset.addEventListener('click', () => {
       store.resetCareer()
+      squadEditor = null
       mountEl.replaceChildren()
       renderCareerHome(mountEl)
     })
-    body.append(renderMiniTable(save), reset)
+    body.append(renderMiniTable(save), nextSeason, reset)
   } else {
     const next = myNextFixture(save)
     const card = document.createElement('div')
@@ -237,6 +267,30 @@ export function renderCareerHome(mountEl) {
     go.addEventListener('click', () => navigate(careerMatchdayPath()))
     card.append(roundLabel, matchup, go)
     body.append(card, renderMiniTable(save))
+  }
+
+  if (save.history.length > 0) {
+    const historyBox = document.createElement('div')
+    historyBox.className = 'career__history'
+    const heading = document.createElement('div')
+    heading.className = 'career__round-heading'
+    heading.textContent = '역대 시즌'
+    historyBox.appendChild(heading)
+    for (const entry of save.history) {
+      const line = document.createElement('div')
+      line.className = 'career__history-line'
+        const scorer = entry.topScorer ? findCareerPlayer(entry.topScorer.playerId) : null
+      line.append(
+        document.createTextNode(`시즌 ${entry.season} — 우승 `),
+        clubLabel(entry.championClubId, { short: true }),
+        document.createTextNode(
+          `${entry.championClubId === save.userClubId ? ' (내 구단!)' : ''}`
+          + ` · 내 순위 ${entry.myClubRank}위`
+          + (scorer ? ` · 득점왕 ${scorer.name} ${entry.topScorer.goals}골` : '')),
+      )
+      historyBox.appendChild(line)
+    }
+    body.appendChild(historyBox)
   }
 
   screen.appendChild(body)
@@ -576,6 +630,193 @@ export function renderCareerMatchday(mountEl) {
   playback.controlsBar.appendChild(finishBtn)
 
   body.append(playback.scoreboard, playback.pitch, playback.commentary, playback.controlsBar)
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- /career/draft ----------
+
+export function renderCareerDraft(mountEl) {
+  ensureInit()
+  clearActivePlayback()
+  const save = guardNoSave({ allowDraftPhase: true })
+  if (!save) return
+  if (save.phase !== 'draft') {
+    navigate(careerPath())
+    renderCareerHome(mountEl)
+    return
+  }
+
+  // 진입/재개 시 내 차례까지 AI 픽을 배치로 진행(고아 타이머 없는 즉시 처리 —
+  // matchPlayback의 소유권 원칙과 같은 이유로 setTimeout 연출을 쓰지 않는다).
+  const current = store.draftCatchUp()
+  if (current.phase !== 'draft') {
+    // 캐치업만으로 드래프트가 끝났다(내 픽이 마지막 순번이 아니었던 경우) — 시즌으로.
+    navigate(careerPath())
+    mountEl.replaceChildren()
+    renderCareerHome(mountEl)
+    return
+  }
+  const draftState = current.draftState
+
+  const fullRerender = () => {
+    mountEl.replaceChildren()
+    renderCareerDraft(mountEl)
+  }
+
+  const screen = screenShell(`드래프트 — 시즌 ${current.season.number}`, { backTo: homePath(), backLabel: '← 모드 선택' })
+  const body = document.createElement('div')
+  body.className = 'career__body'
+
+  // 진행 상황: 스네이크 순서 + 현재 픽
+  const status = document.createElement('div')
+  status.className = 'career__draft-status'
+  const pickLabel = document.createElement('div')
+  pickLabel.className = 'career__hint'
+  pickLabel.textContent = `픽 ${draftState.pickIndex + 1} / ${draftState.totalPicks} — 내 차례: ${findClub(save.userClubId).name}`
+  const orderRow = document.createElement('div')
+  orderRow.className = 'career__draft-order'
+  for (const clubId of draftState.order) {
+    const chip = document.createElement('span')
+    chip.className = 'chip'
+    if (clubId === currentClubOf(draftState)) chip.classList.add('chip--active')
+    chip.appendChild(clubLabel(clubId, { short: true }))
+    orderRow.appendChild(chip)
+  }
+  status.append(pickLabel, orderRow)
+  body.appendChild(status)
+
+  // 최근 픽 로그 (최신 6개)
+  if (draftState.log.length > 0) {
+    const logBox = document.createElement('div')
+    logBox.className = 'career__draft-log'
+    for (const entry of draftState.log.slice(-6).reverse()) {
+      const line = document.createElement('div')
+      line.className = 'career__history-line'
+      const player = findCareerPlayer(entry.playerId)
+      line.append(
+        document.createTextNode(`${entry.pickNumber}. `),
+        clubLabel(entry.clubId, { short: true }),
+        document.createTextNode(` → ${player.name} (${player.positions[0]} ${playerOverallRating(player)})`),
+      )
+      logBox.appendChild(line)
+    }
+    body.appendChild(logBox)
+  }
+
+  // 내 로스터 현황
+  const myIds = draftState.rosters[save.userClubId]
+  const myLine = document.createElement('p')
+  myLine.className = 'career__hint'
+  myLine.textContent = `내 로스터 ${myIds.length}명: `
+    + myIds.map((id) => findCareerPlayer(id).name).join(', ')
+  body.appendChild(myLine)
+
+  // 가용 선수 리스트 — 레이팅 내림차순, 포지션 필터(GK는 선배정이라 제외).
+  let positionFilter = null
+  const list = document.createElement('div')
+  list.className = 'squad-builder__list'
+
+  const refreshList = () => {
+    list.replaceChildren()
+    const players = draftState.availableIds
+      .map(findCareerPlayer)
+      .filter((p) => !positionFilter || p.positions.includes(positionFilter))
+      .sort((a, b) => playerOverallRating(b) - playerOverallRating(a))
+    for (const player of players) {
+      list.appendChild(createPlayerCard(player, {
+        onClick: () => {
+          store.draftPick(player.id)
+          fullRerender()
+        },
+      }))
+    }
+  }
+
+  const filters = document.createElement('div')
+  filters.className = 'squad-builder__position-filters'
+  const makeChip = (label, value) => {
+    const chip = document.createElement('button')
+    chip.type = 'button'
+    chip.className = 'chip' + (positionFilter === value ? ' chip--active' : '')
+    chip.textContent = label
+    chip.addEventListener('click', () => {
+      positionFilter = value
+      fullRerender()
+    })
+    return chip
+  }
+  filters.appendChild(makeChip('전체', null))
+  for (const pos of POSITIONS.filter((p) => p !== 'GK')) filters.appendChild(makeChip(pos, pos))
+  body.append(filters, list)
+  refreshList()
+
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- /career/records ----------
+
+export function renderCareerRecords(mountEl) {
+  ensureInit()
+  clearActivePlayback()
+  const save = guardNoSave()
+  if (!save) return
+
+  const screen = screenShell('기록')
+  const body = document.createElement('div')
+  body.className = 'career__body'
+  body.appendChild(navChips(careerRecordsPath()))
+
+  const heading = document.createElement('div')
+  heading.className = 'career__round-heading'
+  heading.textContent = `시즌 ${save.season.number} 득점왕`
+  body.appendChild(heading)
+
+  const scorers = topScorers(save.fixtures)
+  if (scorers.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'career__hint'
+    empty.textContent = '아직 득점 기록이 없어 — 경기를 치르면 여기 쌓인다.'
+    body.appendChild(empty)
+  } else {
+    const table = document.createElement('div')
+    table.className = 'career__table'
+    scorers.forEach((row, i) => {
+      const el = document.createElement('div')
+      el.className = 'career__table-row career__table-row--scorer'
+      const player = findCareerPlayer(row.playerId)
+      const clubId = Object.keys(save.rosters).find((id) => save.rosters[id].includes(row.playerId))
+      if (clubId === save.userClubId) el.classList.add('career__table-row--mine')
+      const rank = document.createElement('span')
+      rank.textContent = String(i + 1)
+      const name = document.createElement('span')
+      name.textContent = player.name
+      const club = document.createElement('span')
+      if (clubId) club.appendChild(clubLabel(clubId, { short: true }))
+      const goals = document.createElement('span')
+      goals.textContent = `${row.goals}골`
+      el.append(rank, name, club, goals)
+      table.appendChild(el)
+    })
+    body.appendChild(table)
+  }
+
+  if (save.history.length > 0) {
+    const historyHeading = document.createElement('div')
+    historyHeading.className = 'career__round-heading'
+    historyHeading.textContent = '역대 득점왕'
+    body.appendChild(historyHeading)
+    for (const entry of save.history) {
+      if (!entry.topScorer) continue
+      const line = document.createElement('div')
+      line.className = 'career__history-line'
+      const player = findCareerPlayer(entry.topScorer.playerId)
+      line.textContent = `시즌 ${entry.season} — ${player.name} ${entry.topScorer.goals}골`
+      body.appendChild(line)
+    }
+  }
+
   screen.appendChild(body)
   mountEl.appendChild(screen)
 }
