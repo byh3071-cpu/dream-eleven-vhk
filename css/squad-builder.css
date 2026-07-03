@@ -97,3 +97,86 @@
     align-items: stretch;
   }
 }
+
+/* ---------- 리스트 3종 개선 (A/B/C) ---------- */
+
+.squad-builder__list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.squad-builder__anchors {
+  display: flex;
+  gap: var(--space-12);
+}
+
+.squad-builder__group-heading {
+  width: 100%;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent-gold-bright);
+  border-bottom: var(--border-panel);
+  padding-bottom: var(--space-4);
+  margin-top: var(--space-8);
+}
+
+/* 행 뷰(B): 리스트를 세로 스택으로 전환 */
+.squad-builder__list--rows {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-4);
+}
+
+.player-row {
+  display: grid;
+  grid-template-columns: 3rem 3rem 1fr 3rem;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: 480px;
+  padding: var(--space-6) var(--space-12);
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-row--assigned {
+  opacity: var(--opacity-disabled);
+}
+
+.player-row__rating {
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-row__pos {
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.player-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-row__era {
+  font-size: var(--text-xs);
+  color: var(--accent-silver);
+  font-weight: 700;
+  text-align: right;
+}
+
+.player-row__era--legend {
+  color: var(--accent-gold);
+}

@@ -5,6 +5,54 @@
 import { createPlayerBadge } from '../components/playerBadge.js'
 import { createPlayerCard } from '../components/playerCard.js'
 import { renderPitchLines } from '../components/pitchLines.js'
+import { playerOverallRating } from '../../sim/teamStrength.js'
+
+// 리스트 스크롤 개선 3종(사용자 선택 A+B+C):
+// A) 전체 보기(필터/검색 없음)에서 라인 그룹 헤더 + 앵커 점프
+// B) 카드 <-> 컴팩트 행 토글 (state.viewMode)
+// C) 슬롯 선택 시 해당 롤 상위 5명 "추천" 밴드 상단 고정
+const LINE_GROUPS = [
+  { key: 'gk', label: '골키퍼', roles: ['GK'] },
+  { key: 'def', label: '수비', roles: ['CB', 'LB', 'RB'] },
+  { key: 'mid', label: '미드필드', roles: ['DM', 'CM', 'AM', 'LM', 'RM'] },
+  { key: 'att', label: '공격', roles: ['LW', 'RW', 'ST'] },
+]
+
+function lineOf(player) {
+  const pos = player.positions[0]
+  return LINE_GROUPS.find((g) => g.roles.includes(pos)) ?? LINE_GROUPS[2]
+}
+
+// 컴팩트 행(B): 한 줄에 레이팅/포지션/이름/에라 — 한 화면 표시량 3~4배.
+function createPlayerRow(player, { onClick, assigned = false } = {}) {
+  const row = document.createElement('button')
+  row.type = 'button'
+  row.className = 'player-row' + (assigned ? ' player-row--assigned' : '')
+  if (onClick) row.addEventListener('click', () => onClick(player))
+
+  const rating = document.createElement('span')
+  rating.className = 'player-row__rating'
+  rating.textContent = String(playerOverallRating(player))
+  const pos = document.createElement('span')
+  pos.className = 'player-row__pos'
+  pos.textContent = player.positions[0]
+  const name = document.createElement('span')
+  name.className = 'player-row__name'
+  name.textContent = player.name
+  const era = document.createElement('span')
+  era.className = 'player-row__era' + (player.era === 'legend' ? ' player-row__era--legend' : '')
+  era.textContent = player.era === 'legend' ? 'LGD' : 'ACT'
+  row.append(rating, pos, name, era)
+  return row
+}
+
+function groupHeading(label, anchorKey) {
+  const heading = document.createElement('div')
+  heading.className = 'squad-builder__group-heading'
+  heading.dataset.anchor = anchorKey
+  heading.textContent = label
+  return heading
+}
 
 function renderEmptySlotBadge(role) {
   const badge = document.createElement('div')
@@ -76,13 +124,43 @@ export function renderCardListInto(listEl, state, pool, onPlayerPick, options = 
     listEl.appendChild(empty)
     return
   }
-  for (const player of matched) {
+
+  const compact = state.viewMode === 'row'
+  listEl.classList.toggle('squad-builder__list--rows', compact)
+  const renderItem = (player) => {
     const assigned = state.assignments.some((a) => a.playerId === player.id)
       || Boolean(isPickDisabled?.(player)) // 정지자 등 — 흐림 처리로 신호
-    const card = createPlayerCard(player, { onClick: onPlayerPick, assigned })
-    cardDecorator?.(card, player)
-    listEl.appendChild(card)
+    const item = compact
+      ? createPlayerRow(player, { onClick: onPlayerPick, assigned })
+      : createPlayerCard(player, { onClick: onPlayerPick, assigned })
+    if (!compact) cardDecorator?.(item, player)
+    return item
   }
+
+  // C) 추천 밴드: 슬롯을 골라둔 상태(=positionFilter가 그 롤)면 상위 5명을 먼저 보여준다.
+  if (state.selectedSlotIndex != null && state.positionFilter && matched.length > 5) {
+    const top = matched.slice(0, 5)
+    const rest = matched.slice(5)
+    listEl.appendChild(groupHeading(`추천 TOP 5 — ${state.positionFilter}`, 'top'))
+    for (const player of top) listEl.appendChild(renderItem(player))
+    listEl.appendChild(groupHeading('나머지', 'rest'))
+    for (const player of rest) listEl.appendChild(renderItem(player))
+    return
+  }
+
+  // A) 라인 그룹 헤더: 전체 보기(필터/검색 없음)일 때만 — 필터가 걸리면 평면 리스트.
+  const grouped = !state.positionFilter && !state.searchQuery.trim()
+  if (grouped) {
+    for (const group of LINE_GROUPS) {
+      const players = matched.filter((p) => lineOf(p) === group)
+      if (players.length === 0) continue
+      listEl.appendChild(groupHeading(`${group.label} (${players.length})`, group.key))
+      for (const player of players) listEl.appendChild(renderItem(player))
+    }
+    return
+  }
+
+  for (const player of matched) listEl.appendChild(renderItem(player))
 }
 
 export function renderListPanel(state, pool, callbacks, options = {}) {
@@ -118,7 +196,36 @@ export function renderListPanel(state, pool, callbacks, options = {}) {
   filters.appendChild(makeChip('전체', null))
   for (const pos of options.positions) filters.appendChild(makeChip(pos, pos))
 
+  // B) 뷰 토글 + A) 라인 앵커 점프 바
+  const toolbar = document.createElement('div')
+  toolbar.className = 'squad-builder__list-toolbar'
+  const viewToggle = document.createElement('button')
+  viewToggle.type = 'button'
+  viewToggle.className = 'chip'
+  viewToggle.textContent = state.viewMode === 'row' ? '카드 보기' : '행 보기'
+  viewToggle.addEventListener('click', () => {
+    state.viewMode = state.viewMode === 'row' ? 'card' : 'row'
+    viewToggle.textContent = state.viewMode === 'row' ? '카드 보기' : '행 보기'
+    refreshList()
+  })
+  toolbar.appendChild(viewToggle)
+
+  const anchors = document.createElement('div')
+  anchors.className = 'squad-builder__anchors'
+  for (const group of LINE_GROUPS) {
+    const jump = document.createElement('button')
+    jump.type = 'button'
+    jump.className = 'link-button'
+    jump.textContent = group.label
+    jump.addEventListener('click', () => {
+      const heading = list.querySelector(`[data-anchor="${group.key}"]`)
+      heading?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+    anchors.appendChild(jump)
+  }
+  toolbar.appendChild(anchors)
+
   refreshList()
-  panel.append(search, filters, list)
+  panel.append(search, filters, toolbar, list)
   return panel
 }

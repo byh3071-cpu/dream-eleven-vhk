@@ -11,6 +11,7 @@ export function createEditorState(formationId) {
     selectedSlotIndex: null,
     searchQuery: '',
     positionFilter: null,
+    viewMode: 'card', // 'card' | 'row' — 리스트 밀도 토글(B)
   }
 }
 
