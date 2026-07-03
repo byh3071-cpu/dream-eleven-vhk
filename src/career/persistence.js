@@ -2,7 +2,7 @@
 // Jest(node 환경)에 localStorage가 없어서 — 테스트는 Map 기반 페이크를 넣는다.
 
 const STORAGE_KEY = 'dream-eleven.career'
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 // v(n) 세이브 -> v(n+1) 세이브 순수 변환 목록. 스키마가 바뀔 때마다 여기 추가하고
 // tests/career에 이전 버전 세이브 픽스처를 고정해 회귀를 방어한다.
@@ -38,6 +38,15 @@ const MIGRATIONS = [
     ...save,
     youthPlayers: {},
     academyCandidates: [],
+  }),
+  // v5 -> v6 (goal 20): 미디어/서사 — 은퇴 명단/통산 득점/기자회견 로그.
+  // history[].story는 신규 시즌부터 적립(기존 엔트리는 옵셔널로 열람).
+  (save) => ({
+    ...save,
+    retiredLog: [],
+    careerTotals: {},
+    pressLog: [],
+    pendingPress: null,
   }),
 ]
 

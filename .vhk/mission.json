@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 18(N7): 유스 아카데미 + 파생 에이징 — resolveCareerPlayer(save,id) 3계층, developPlayer 시즌 파생(저장 0), youthGen 16개국, 이적창 아카데미, 세이브 v5, 3시즌 성장 게이트",
+  "objective": "goal 20(N8): 미디어/서사 — 시즌 스토리(story.js)/기자회견 3회(신임도 연동)/명예의 전당(/career/legacy, 통산 득점·은퇴 명단)/은퇴(34+ 확률·37+ 강제·하한 유예), 세이브 v6, 5시즌 서사 게이트",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T09:38:13.300Z"
+  "updatedAt": "2026-07-03T09:57:28.220Z"
 }

@@ -11,6 +11,9 @@
 import { CLUBS } from './clubs.js'
 import { CAREER_POOL, findCareerPlayer, resolveCareerPlayer } from './players.js'
 import { generateYouth } from './youthGen.js'
+import { rollRetirements } from './retirement.js'
+import { composeSeasonStory } from './story.js'
+import { pressTriggerFor, applyPressAnswer } from './press.js'
 import { generateFixtures, totalRounds } from './schedule.js'
 import { createDraftState, applyPick, aiPickFor, isDraftDone, currentClubOf } from './draft.js'
 import { initialPlayerState } from './playerState.js'
@@ -75,6 +78,10 @@ export function newCareer({ userClubId, masterSeed, storage }) {
     gameOverReason: null,
     youthPlayers: {},
     academyCandidates: [],
+    retiredLog: [],
+    careerTotals: {},
+    pressLog: [],
+    pendingPress: null,
     tactics: { ...DEFAULT_TACTICS },
     lineup: null,
   }
@@ -140,9 +147,11 @@ function finalizeIfDone(save) {
       contracts[id] = contractYearsFor(id, save.season.number)
     }
   }
+  const openingPress = pressTriggerFor({ ...save, pendingPress: null, rosters: save.draftState.rosters })
   return {
     ...save,
     phase: 'season',
+    pendingPress: openingPress ?? null,
     rosters: save.draftState.rosters,
     draftState: null,
     fixtures: generateFixtures(clubIds),
@@ -164,7 +173,18 @@ export function setTactics(tactics, storage) {
 }
 
 export function finishRound(options, storage) {
-  return updateCareer((save) => runnerFinishRound(save, options), storage)
+  return updateCareer((save) => {
+    let next = runnerFinishRound(save, options)
+    // 시즌 중반 기자회견(6라운드 소화 후 = currentRound 7 진입 시점).
+    const trigger = pressTriggerFor(next)
+    if (trigger) next = { ...next, pendingPress: trigger }
+    return next
+  }, storage)
+}
+
+// 기자회견 답변 — 신임도 반영 + pressLog 적립.
+export function answerPress(answerId, storage) {
+  return updateCareer((save) => applyPressAnswer(save, answerId), storage)
 }
 
 export function seasonDone(save = current) {
@@ -199,6 +219,7 @@ export function enterTransferWindow(storage) {
         topScorer: scorers[0] ?? null,
         mvp: seasonMvp(save.seasonStats),
         myClubRank: table.findIndex((row) => row.clubId === save.userClubId) + 1,
+        story: [], // 은퇴 판정 후 아래에서 채운다(헌사 포함)
       }],
       budgets,
       contracts,
@@ -209,6 +230,35 @@ export function enterTransferWindow(storage) {
     // AI-AI 배경 거래 — 이적창 개장 시 1~2건(결정론 rng).
     const rng = createRng(deriveSeed(save.masterSeed, 0x7a5f + next.season.number))
     next = runAiTransfers(next, rng)
+
+    // 통산 득점 누적(goal 20) — 시즌 fixtures가 리셋되기 전에 합산해 박제.
+    const careerTotals = { ...(next.careerTotals ?? {}) }
+    for (const row of topScorers(save.fixtures, { limit: 999 })) {
+      careerTotals[row.playerId] = (careerTotals[row.playerId] ?? 0) + row.goals
+    }
+    next = { ...next, careerTotals }
+
+    // 은퇴(goal 20) — 새 시즌 기준 파생 나이로 판정, 하한 가드는 "한 시즌 더" 유예.
+    const retireRng = createRng(deriveSeed(save.masterSeed, 0x8e71 + next.season.number))
+    const { retirees, rosters: postRetireRosters } = rollRetirements(next, retireRng)
+    next = {
+      ...next,
+      rosters: postRetireRosters,
+      retiredLog: [...(next.retiredLog ?? []), ...retirees],
+      lineup: null, // 은퇴자가 라인업에 있을 수 있어 재구성 강제
+    }
+
+    // 시즌 서사 박제 — 은퇴 헌사 포함(구 시즌 세이브 기준으로 조합).
+    const story = composeSeasonStory(save, { retirees })
+    const lastEntry = next.history[next.history.length - 1]
+    next = {
+      ...next,
+      history: [...next.history.slice(0, -1), { ...lastEntry, story }],
+    }
+
+    // 시즌 종료 기자회견 트리거(이적창에서 답변).
+    const closingPress = pressTriggerFor({ ...next, season: { ...next.season, currentRound: 13 } })
+    if (closingPress) next = { ...next, pendingPress: closingPress }
 
     // 유스 아카데미(goal 18): 구단별 후보 생성(내 구단 3명, AI 2명 중 최고 1명 자동 영입).
     const youthRng = createRng(deriveSeed(save.masterSeed, 0x70d7 + next.season.number))
@@ -277,9 +327,12 @@ export function startSeasonAfterTransfer(storage) {
     // 만료(0년) 계약은 새 시즌 자동 1년 재계약(방출 시스템은 N6 경영에서).
     const contracts = Object.fromEntries(
       Object.entries(save.contracts).map(([id, years]) => [id, years === 0 ? 1 : years]))
+    // 개막 기자회견 트리거(currentRound 1).
+    const openingPress = pressTriggerFor({ ...save, pendingPress: null })
     return {
       ...save,
       academyCandidates: [], // 미영입 유스 후보는 개막과 함께 소멸
+      pendingPress: openingPress ?? null,
       phase: 'season',
       fixtures: generateFixtures(clubIds),
       playerState,

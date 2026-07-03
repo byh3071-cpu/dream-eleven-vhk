@@ -343,11 +343,15 @@ describe('N4/N5 — 시즌 전환(이적창) + 득점왕', () => {
     expect(save.history[0].topScorer.playerId).toBe(season1Top.playerId)
     const totalBudget = Object.values(save.budgets).reduce((a, b) => a + b, 0)
     expect(totalBudget).toBe(totalBefore + 115)
-    // 로스터 연속성(재드래프트 폐지): 기존 76명 전원 잔류 + AI 유스 자동 영입(3구단×1)
+    // 로스터 연속성(재드래프트 폐지) + 은퇴(goal 20): 잔류+은퇴 = 기존 76 보존 법칙,
+    // AI 유스 자동 영입(3구단×1)은 별도 가산.
     const allIds = Object.values(save.rosters).flat()
     const originals = allIds.filter((id) => !id.startsWith('youth_'))
-    expect(originals).toHaveLength(76)
+    expect(originals.length + save.retiredLog.length).toBe(76)
+    expect(save.retiredLog.every((r) => r.age >= 34 && r.name)).toBe(true)
     expect(allIds.filter((id) => id.startsWith('youth_'))).toHaveLength(3)
+    // 시즌 서사가 history에 박제됐다(goal 20 완료 기준의 저장 축)
+    expect(save.history[0].story.length).toBeGreaterThanOrEqual(3)
     expect(save.rosters[save.userClubId].length).toBeGreaterThanOrEqual(15)
     // 계약 연차 -1 (단, AI 이적자와 신규 유스는 새 3년 계약이 정상)
     const transferred = new Set(save.transferLog.map((t) => t.playerId))

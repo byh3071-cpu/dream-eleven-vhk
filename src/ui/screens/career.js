@@ -6,7 +6,7 @@ import { navigate } from '../../router.js'
 import {
   careerPath, careerSquadPath, careerTacticsPath, careerTablePath,
   careerSchedulePath, careerMatchdayPath, careerDraftPath, careerRecordsPath, careerTransferPath,
-  careerFinancePath, homePath,
+  careerFinancePath, careerLegacyPath, homePath,
 } from '../../routes.js'
 import { CLUBS, findClub } from '../../career/clubs.js'
 import { findCareerPlayer } from '../../career/players.js'
@@ -26,6 +26,7 @@ import { motmOf } from '../../sim/playerRatings.js'
 import { seasonAwards } from '../../career/awards.js'
 import { computePreMatchChips } from '../../career/narrative.js'
 import { scoutStars } from '../../career/youthGen.js'
+import { pressQuestionOf } from '../../career/press.js'
 import { createIcon, iconLabel } from '../components/icons.js'
 import { FINANCE, expectedRankOf } from '../../career/finance.js'
 import { POSITIONS } from '../../data/player-schema.js'
@@ -109,7 +110,7 @@ function navChips(current) {
   const items = [
     ['홈', careerPath()], ['스쿼드', careerSquadPath()], ['전술', careerTacticsPath()],
     ['일정', careerSchedulePath()], ['순위표', careerTablePath()], ['기록', careerRecordsPath()],
-    ['재정', careerFinancePath()],
+    ['재정', careerFinancePath()], ['명예의 전당', careerLegacyPath()],
     ['매치데이', careerMatchdayPath()],
   ]
   for (const [label, path] of items) {
@@ -121,6 +122,38 @@ function navChips(current) {
     wrap.appendChild(chip)
   }
   return wrap
+}
+
+// 기자회견 카드(goal 20) — pendingPress가 있으면 홈/이적창 상단에 노출.
+function renderPressCard(save, rerender) {
+  if (!save.pendingPress) return null
+  const question = pressQuestionOf(save.pendingPress)
+  if (!question) return null
+  const card = document.createElement('div')
+  card.className = 'career__press'
+  const heading = document.createElement('div')
+  heading.className = 'career__round-heading'
+  heading.appendChild(iconLabel('tv', '기자회견', { size: 14 }))
+  const q = document.createElement('p')
+  q.className = 'career__press-question'
+  q.textContent = question.q
+  card.append(heading, q)
+  for (const answer of question.answers) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'career__press-answer'
+    btn.textContent = answer.text
+    btn.addEventListener('click', () => {
+      store.answerPress(answer.id)
+      rerender()
+    })
+    card.appendChild(btn)
+  }
+  const hint = document.createElement('p')
+  hint.className = 'career__hint'
+  hint.textContent = '답변은 보드 신임도에 반영되고 커리어 기록에 남는다.'
+  card.appendChild(hint)
+  return card
 }
 
 function myNextFixture(save) {
@@ -256,6 +289,12 @@ export function renderCareerHome(mountEl) {
   trustChip.textContent = `보드 신임도 ${trust}`
   statusRow.append(budgetChip, trustChip)
   body.appendChild(statusRow)
+
+  const pressCard = renderPressCard(save, () => {
+    mountEl.replaceChildren()
+    renderCareerHome(mountEl)
+  })
+  if (pressCard) body.appendChild(pressCard)
 
   if (store.seasonDone(save)) {
     const tableRows = computeTable(CLUBS.map((c) => c.id), save.fixtures)
@@ -992,6 +1031,9 @@ export function renderCareerTransfer(mountEl) {
   budget.textContent = `내 예산 ${save.budgets[save.userClubId]}M`
   body.appendChild(budget)
 
+  const pressCard = renderPressCard(save, fullRerender)
+  if (pressCard) body.appendChild(pressCard)
+
   // 이번 창 거래 로그(내 거래 + AI 배경 거래)
   const seasonLog = (save.transferLog ?? []).filter((t) => t.season === save.season.number)
   if (seasonLog.length > 0) {
@@ -1256,6 +1298,102 @@ function renderGameOver(mountEl, save) {
     renderCareerHome(mountEl)
   })
   body.appendChild(restart)
+
+  screen.appendChild(body)
+  mountEl.appendChild(screen)
+}
+
+// ---------- /career/legacy (goal 20 — 명예의 전당) ----------
+
+export function renderCareerLegacy(mountEl) {
+  ensureInit()
+  clearActivePlayback()
+  const save = guardNoSave()
+  if (!save) return
+
+  const screen = screenShell('명예의 전당')
+  const body = document.createElement('div')
+  body.className = 'career__body'
+  body.appendChild(navChips(careerLegacyPath()))
+
+  // 통산 득점 TOP 10 (careerTotals — 완결 시즌 누적)
+  const totals = Object.entries(save.careerTotals ?? {})
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10)
+  if (totals.length > 0) {
+    const heading = document.createElement('div')
+    heading.className = 'career__round-heading'
+    heading.appendChild(iconLabel('crown', '통산 득점 TOP 10', { size: 14 }))
+    body.appendChild(heading)
+    const table = document.createElement('div')
+    table.className = 'career__table'
+    totals.forEach(([playerId, goals], i) => {
+      const row = document.createElement('div')
+      row.className = 'career__table-row career__table-row--scorer'
+      const rank = document.createElement('span')
+      rank.textContent = String(i + 1)
+      const name = document.createElement('span')
+      name.textContent = store.resolvePlayer(playerId)?.name ?? playerId
+      const retired = document.createElement('span')
+      retired.textContent = (save.retiredLog ?? []).some((r) => r.playerId === playerId) ? '은퇴' : ''
+      const count = document.createElement('span')
+      count.textContent = `${goals}골`
+      row.append(rank, name, retired, count)
+      table.appendChild(row)
+    })
+    body.appendChild(table)
+  }
+
+  // 역대 시즌 서사
+  if (save.history.length > 0) {
+    const heading = document.createElement('div')
+    heading.className = 'career__round-heading'
+    heading.appendChild(iconLabel('trophy', '역대 시즌', { size: 14 }))
+    body.appendChild(heading)
+    for (const entry of [...save.history].reverse()) {
+      const card = document.createElement('div')
+      card.className = 'career__legacy-season'
+      const title = document.createElement('div')
+      title.className = 'career__legacy-title'
+      title.append(
+        document.createTextNode(`시즌 ${entry.season} — 우승 `),
+        clubLabel(entry.championClubId, { short: true }),
+        document.createTextNode(` · 내 순위 ${entry.myClubRank}위`),
+      )
+      card.appendChild(title)
+      for (const line of entry.story ?? []) {
+        const p = document.createElement('p')
+        p.className = 'career__legacy-line'
+        p.textContent = line
+        card.appendChild(p)
+      }
+      body.appendChild(card)
+    }
+  } else {
+    const empty = document.createElement('p')
+    empty.className = 'career__hint'
+    empty.textContent = '아직 완결된 시즌이 없어 — 시즌을 끝내면 이야기가 쌓인다.'
+    body.appendChild(empty)
+  }
+
+  // 은퇴 명단
+  const retired = [...(save.retiredLog ?? [])].reverse()
+  if (retired.length > 0) {
+    const heading = document.createElement('div')
+    heading.className = 'career__round-heading'
+    heading.appendChild(iconLabel('medal', '은퇴 선수', { size: 14 }))
+    body.appendChild(heading)
+    for (const r of retired) {
+      const line = document.createElement('div')
+      line.className = 'career__history-line'
+      line.append(
+        document.createTextNode(`시즌 ${r.season}을 끝으로 — ${r.name} (${r.age}세, `),
+        clubLabel(r.clubId, { short: true }),
+        document.createTextNode(')'),
+      )
+      body.appendChild(line)
+    }
+  }
 
   screen.appendChild(body)
   mountEl.appendChild(screen)

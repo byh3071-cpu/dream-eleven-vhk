@@ -49,16 +49,21 @@ for (let season = 1; season <= 4; season++) {
 }
 
 let grown = 0
+let eligible = 0 // 성장 기회(영입 후 ≥1시즌 경과)가 있었던 유스만 성장률 분모로 —
+// 은퇴 도입 후 AI가 마지막 시즌에도 유스를 영입해 "기회 0" 개체가 분모를 오염시켰다.
 for (const [id, first] of firstSeen) {
   const now = playerOverallRating(resolveCareerPlayer(save, id))
   const age = resolveCareerPlayer(save, id).age
   const delta = now - first.rating
-  if (delta > 0) grown++
+  if (first.season < 3) {
+    eligible++
+    if (delta > 0) grown++
+  }
   console.log(`${id.padEnd(14)} 영입 S${first.season} ${first.rating} → S${save.season.number} ${now} (${delta >= 0 ? '+' : ''}${delta}) · ${age}세${debuted.has(id) ? ' · 1군 출전 ✓' : ''}`)
 }
 
-console.log(`\n유스 총 ${firstSeen.size}명 · 성장 ${grown}명 · 1군 데뷔 ${debuted.size}명`)
-if (firstSeen.size < 6 || grown < firstSeen.size * 0.7 || debuted.size < 1) {
+console.log(`\n유스 총 ${firstSeen.size}명(성장 기회 ${eligible}) · 성장 ${grown}명 · 1군 데뷔 ${debuted.size}명`)
+if (firstSeen.size < 6 || eligible === 0 || grown < eligible * 0.7 || debuted.size < 1) {
   console.log('❌ youth-growth 게이트 실패')
   process.exit(1)
 }
