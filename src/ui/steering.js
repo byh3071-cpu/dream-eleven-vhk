@@ -38,6 +38,24 @@ export function computeTarget(basePos, ballPos, team, hasPossession) {
   }
 }
 
+// ---------- 이벤트 관련자 강풀 (N1 볼-선수 앵커링) ----------
+// 현재 이벤트의 주역(패스 수신자, 드리블러, 태클러, 슈터)은 팀 셰이프 유지가 아니라
+// "이벤트 지점으로 실제로 가는" 그림이어야 한다 — computeTarget의 완만한 쏠림 대신
+// 존 그리드 지점으로 훨씬 강하게 당긴다. 볼이 그 선수를 호밍하므로(ballFlight.js)
+// 선수가 지점에 도착하는 만큼 볼-선수 만남 지점도 자연히 그쪽이 된다.
+const OVERRIDE_PULL_FRACTION = 0.55
+const OVERRIDE_MAX_PULL = 16
+
+export function computeOverrideTarget(basePos, point) {
+  const dx = point.left - basePos.left
+  const dy = point.top - basePos.top
+  const dist = Math.hypot(dx, dy)
+  if (dist === 0) return { left: basePos.left, top: basePos.top }
+  const pull = Math.min(dist * OVERRIDE_PULL_FRACTION, OVERRIDE_MAX_PULL)
+  const ratio = pull / dist
+  return { left: basePos.left + dx * ratio, top: basePos.top + dy * ratio }
+}
+
 // ---------- 이동: 임계감쇠 스프링 ----------
 // 이전엔 "목표까지 최대속도로 직선 이동 후 뚝 멈춤"이라 로봇처럼 보였다. 임계감쇠 스프링은
 // 정지 상태에서 가속했다가 목표에 다가가면서 감속해 멈춘다 — 오버슈트/진동 없이 가장 빠르게

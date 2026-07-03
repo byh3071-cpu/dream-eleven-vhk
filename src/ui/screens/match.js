@@ -11,8 +11,12 @@ import { createPlayerBadge } from '../components/playerBadge.js'
 import { renderPitchLines } from '../components/pitchLines.js'
 import { navigate } from '../../router.js'
 import { ifSquadPath, ifResultPath } from '../../routes.js'
-import { computeTarget, springStep, MAX_SUBSTEP } from '../steering.js'
-import { NARRATION_TYPES } from '../../sim/event-types.js'
+import { computeTarget, computeOverrideTarget, springStep, MAX_SUBSTEP } from '../steering.js'
+import { possessionTeamOf } from '../../sim/event-types.js'
+import {
+  restState, flightToTokenState, flightToPointState,
+  advanceBall, ballPosition, settleBall,
+} from '../ballFlight.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 const SIDE_TO_TEAM = { home: 'A', away: 'B' }
@@ -92,11 +96,14 @@ function renderGuard(mountEl, problems) {
   mountEl.appendChild(screen)
 }
 
-// steeringRefs가 주어지면 이 슬롯을 M8 스티어링 애니메이션 대상으로 등록한다(선수 토큰만 —
-// 좌표는 그대로 두고 재생 중 style.transform만 덧붙여서 미세하게 볼 쪽으로 쏠리게 만든다).
+// steeringRefs가 주어지면 이 슬롯을 스티어링 애니메이션 대상으로 등록한다(선수 토큰만 —
+// 좌표는 그대로 두고 재생 중 style.transform만 덧붙여서 볼/이벤트에 반응하게 만든다).
+// dataset.playerId는 anti-float 검증 스크립트(scripts/verify-anti-float.mjs)와
+// 볼 호밍의 토큰 위치 해석(refsById)이 쓴다.
 function renderStaticSlot(entry, team, steeringRefs) {
   const el = document.createElement('div')
   el.className = 'pitch-slot pitch-slot--static'
+  el.dataset.playerId = entry.player.id
   const basePos = { left: entry.slot.x, top: screenTop(entry.slot.y, team) }
   el.style.left = `${basePos.left}%`
   el.style.top = `${basePos.top}%`
@@ -107,7 +114,7 @@ function renderStaticSlot(entry, team, steeringRefs) {
   el.appendChild(name)
   if (steeringRefs) {
     steeringRefs.push({
-      el, basePos, team, pace: entry.player.stats.pace,
+      el, basePos, team, playerId: entry.player.id, pace: entry.player.stats.pace,
       current: { ...basePos }, velocity: { left: 0, top: 0 },
     })
   }
@@ -153,16 +160,31 @@ function clearActiveRaf() {
   }
 }
 
-const BASE_DELAY_MS = 550
-// 서술 이벤트(pass/carry)는 골/슈팅 같은 결정적 이벤트보다 훨씬 짧게 보여줘야
-// "여러 지점을 순간이동"이 아니라 "지나간다"처럼 보인다. css/match-view.css의
-// .match__ball transition(--duration-ball-travel)보다는 길게 잡아야 이동이 끝나고
-// 다음 이동이 시작된다 — 그보다 짧으면 transition이 매번 중간에 끊긴다.
-// (N1-c에서 타입별 페이싱 테이블로 확장 예정)
-const NARRATION_DELAY_MS = 180
+// 이벤트별 페이싱(다음 이벤트까지의 간격). 볼 비행시간은 이 값의 FLIGHT_RATIO배로
+// 잡아서 "이동이 끝난 뒤 다음 이벤트"를 보장한다(끝나기 전에 다음 이벤트가 오면
+// 비행이 끊기는 게 아니라 현재 볼 위치에서 새 비행이 시작되므로 순간이동은 없지만,
+// 완주하는 편이 리듬이 읽기 좋다). carry는 볼이 짧게 발밑으로 붙은 뒤(TRANSFER)
+// 보유자가 끌고 가는 그림이라 간격을 길게 준다.
+const DELAY_MS = {
+  pass: 420, carry: 700, turnover_buildup: 550,
+  shot_saved: 700, shot_off_target: 700, goal: 950,
+}
+const FLIGHT_RATIO = 0.72
+const CARRY_TRANSFER_MS = 160 // carry 시작 시 볼이 보유자 발밑으로 붙는 짧은 비행
 
 function delayFor(event) {
-  return (NARRATION_TYPES.includes(event.type) ? NARRATION_DELAY_MS : BASE_DELAY_MS)
+  return DELAY_MS[event.type] ?? 550
+}
+
+// 이 이벤트에서 강풀(이벤트 지점으로 실제 이동)을 받을 선수 — 패스는 수신자, 나머지는 주역.
+function pullActorOf(event) {
+  if (event.type === 'pass') return event.toId
+  return event.actorId ?? null
+}
+
+// 슛의 목표 지점(상대 골문). screenTop 규약: 팀 A는 위(top 0), B는 아래(top 100)를 공격.
+function goalMouthOf(team) {
+  return { left: 50, top: screenTop(99, team) }
 }
 
 // 이벤트 로그를 하나씩 순서대로 공개한다 — 실시간 시뮬레이션이 아니라 이미 계산된 로그를
@@ -178,13 +200,40 @@ function createPlaybackController(events, refs) {
   let index = 0
   let speed = 1
   const score = { home: 0, away: 0 }
-  let ballTarget = { left: 50, top: 50 }
   // 이 이벤트를 만든(=이 순간 볼을 가진) 팀. steering.js의 computeTarget이 소유/비소유팀을
   // 다르게 반응시키는 데 쓴다 — null이면(킥오프 직전) 양팀 다 "비소유" 취급.
   let possessionTeam = null
   let lastFrameTime = null
   let pitchWidth = 0
   let pitchHeight = 0
+
+  // 볼 상태기계(ballFlight.js) — 볼은 항상 선수 발밑/선수 호밍 비행/골문 비행/정지 중
+  // 하나다(허공답보의 구조적 제거). ballScreenPos는 매 프레임 실측 렌더 위치(선수들의
+  // 스티어링 입력으로도 쓰인다).
+  let ballState = restState({ left: 50, top: 50 })
+  let ballScreenPos = { left: 50, top: 50 }
+  // 현재 이벤트의 주역만 이벤트 지점으로 강풀 — 나머지 20~21명은 팀 셰이프 유지.
+  const pullOverrides = new Map()
+
+  const refsById = new Map(steeringRefs.map((ref) => [ref.playerId, ref]))
+  const resolveTokenPos = (playerId) => {
+    const ref = refsById.get(playerId)
+    return ref ? ref.current : null
+  }
+
+  function syncBallDebugDataset() {
+    ballEl.dataset.mode = ballState.mode
+    ballEl.dataset.holderId = ballState.mode === 'held' ? ballState.holderId : ''
+    ballEl.dataset.toId = ballState.mode === 'flight' ? ballState.toId : ''
+  }
+
+  function renderBall() {
+    const pos = ballPosition(ballState, resolveTokenPos)
+    if (pos) ballScreenPos = pos // null(토큰 미해결)이면 직전 위치 유지
+    ballEl.style.left = `${ballScreenPos.left}%`
+    ballEl.style.top = `${ballScreenPos.top}%`
+    syncBallDebugDataset()
+  }
 
   // 선수 토큰의 basePos 기준 애니메이션 오프셋을 픽셀로 변환해 transform에 얹는다.
   // .pitch-slot 자체가 이미 transform: translate(-50%, -50%)로 중앙정렬돼 있으므로
@@ -200,12 +249,14 @@ function createPlaybackController(events, refs) {
     const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
     lastFrameTime = now
     // 스프링 적분은 deltaSeconds가 크면(프레임 드랍 등) 발산할 수 있어 작은 서브스텝으로
-    // 쪼갠다. target은 프레임당 한 번만 계산(볼 위치는 프레임 중 안 바뀜), 적분만 반복.
+    // 쪼갠다. target은 프레임당 한 번만 계산, 적분만 반복.
     const substeps = deltaSeconds === 0 ? 0 : Math.ceil(deltaSeconds / MAX_SUBSTEP)
     const subDt = substeps === 0 ? 0 : deltaSeconds / substeps
     for (const ref of steeringRefs) {
-      const hasPossession = ref.team === possessionTeam
-      const target = computeTarget(ref.basePos, ballTarget, ref.team, hasPossession)
+      const override = pullOverrides.get(ref.playerId)
+      const target = override
+        ? computeOverrideTarget(ref.basePos, override)
+        : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
       for (let s = 0; s < substeps; s++) {
         const result = springStep(ref.current, ref.velocity, target, ref.pace, subDt, speed)
         ref.current = result.current
@@ -213,6 +264,9 @@ function createPlaybackController(events, refs) {
       }
       applyOffset(ref)
     }
+    // 선수들이 움직인 "뒤" 볼을 갱신해야 held/호밍이 그 프레임의 실측 토큰 위치를 본다.
+    ballState = advanceBall(ballState, deltaSeconds * 1000 * speed)
+    renderBall()
     activeRafId = requestAnimationFrame(stepFrame)
   }
 
@@ -231,20 +285,42 @@ function createPlaybackController(events, refs) {
     pitchWidth = pitchEl.offsetWidth
     pitchHeight = pitchEl.offsetHeight
     for (const ref of steeringRefs) {
-      const hasPossession = ref.team === possessionTeam
-      ref.current = computeTarget(ref.basePos, ballTarget, ref.team, hasPossession)
+      const override = pullOverrides.get(ref.playerId)
+      ref.current = override
+        ? computeOverrideTarget(ref.basePos, override)
+        : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
       ref.velocity = { left: 0, top: 0 }
       applyOffset(ref)
     }
+    ballState = settleBall(ballState)
+    renderBall()
   }
 
   function applyEvent(event) {
-    const pos = eventPosition(event)
-    ballTarget = pos
-    possessionTeam = event.team
-    ballEl.style.left = `${pos.left}%`
-    ballEl.style.top = `${pos.top}%`
+    possessionTeam = possessionTeamOf(event)
     minuteEl.textContent = `${event.minute}'`
+
+    // ---- 볼: 현재 위치에서 이벤트에 맞는 비행/보유로 전이 ----
+    // 비행 출발점을 항상 "지금 볼이 있는 곳"으로 잡으므로, 체인이 바뀌어도(턴오버 직후,
+    // 슛 이후 재시작) 볼이 순간이동하지 않고 새 보유자에게 날아간다 — 골킥/배급으로 읽힘.
+    const flightMs = delayFor(event) * FLIGHT_RATIO
+    if (event.type === 'pass') {
+      ballState = flightToTokenState(ballScreenPos, event.toId, flightMs)
+    } else if (event.type === 'carry' || event.type === 'turnover_buildup') {
+      // 볼이 짧게 주역의 발밑으로 붙고(탈취/터치), 이후 held로 토큰을 따라간다.
+      ballState = flightToTokenState(ballScreenPos, event.actorId, CARRY_TRANSFER_MS)
+    } else if (event.type === 'shot_saved') {
+      ballState = flightToTokenState(ballScreenPos, event.gkId, flightMs)
+    } else if (event.type === 'goal' || event.type === 'shot_off_target') {
+      ballState = flightToPointState(ballScreenPos, goalMouthOf(event.team), flightMs)
+    }
+
+    // ---- 강풀: 이벤트 주역만 이벤트 존 지점으로 실제 이동 ----
+    pullOverrides.clear()
+    const puller = pullActorOf(event)
+    if (puller) pullOverrides.set(puller, eventPosition(event))
+
+    renderBall()
 
     if (event.type === 'goal') {
       if (event.team === 'A') score.home++
@@ -278,10 +354,11 @@ function createPlaybackController(events, refs) {
   }
 
   function resetVisuals() {
-    ballEl.style.left = '50%'
-    ballEl.style.top = '50%'
-    ballTarget = { left: 50, top: 50 }
+    ballState = restState({ left: 50, top: 50 })
+    ballScreenPos = { left: 50, top: 50 }
+    pullOverrides.clear()
     possessionTeam = null
+    renderBall()
     minuteEl.textContent = "0'"
     scoreEl.textContent = '0 - 0'
     commentaryEl.replaceChildren()
