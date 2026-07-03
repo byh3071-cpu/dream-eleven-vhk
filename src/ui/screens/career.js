@@ -25,6 +25,7 @@ import { playerValue } from '../../career/value.js'
 import { motmOf } from '../../sim/playerRatings.js'
 import { seasonAwards } from '../../career/awards.js'
 import { computePreMatchChips } from '../../career/narrative.js'
+import { createIcon, iconLabel } from '../components/icons.js'
 import { FINANCE, expectedRankOf } from '../../career/finance.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
@@ -260,9 +261,11 @@ export function renderCareerHome(mountEl) {
     const champion = findClub(tableRows[0].clubId)
     const banner = document.createElement('div')
     banner.className = 'career__champion'
-    banner.textContent = tableRows[0].clubId === save.userClubId
-      ? `🏆 시즌 ${save.season.number} 우승! ${champion.name}`
-      : `시즌 ${save.season.number} 종료 — 우승: ${champion.name}`
+    banner.replaceChildren(iconLabel('trophy',
+      tableRows[0].clubId === save.userClubId
+        ? `시즌 ${save.season.number} 우승! ${champion.name}`
+        : `시즌 ${save.season.number} 종료 — 우승: ${champion.name}`,
+      { size: 18 }))
     body.appendChild(banner)
 
     // 시즌 결산 — MVP/베스트 XI/득점왕 (seasonStats 파생)
@@ -276,14 +279,15 @@ export function renderCareerHome(mountEl) {
     if (awards.mvp) {
       const mvpLine = document.createElement('div')
       mvpLine.className = 'career__history-line career__awards-mvp'
-      mvpLine.textContent = `🏅 MVP — ${findCareerPlayer(awards.mvp.playerId).name}`
-        + ` (평균 ${awards.mvp.avg.toFixed(2)}, MOTM ${awards.mvp.motm}회)`
+      mvpLine.replaceChildren(iconLabel('medal',
+        `MVP — ${findCareerPlayer(awards.mvp.playerId).name} (평균 ${awards.mvp.avg.toFixed(2)}, MOTM ${awards.mvp.motm}회)`))
       summary.appendChild(mvpLine)
     }
     if (awards.topScorer) {
       const tsLine = document.createElement('div')
       tsLine.className = 'career__history-line'
-      tsLine.textContent = `⚽ 득점왕 — ${findCareerPlayer(awards.topScorer.playerId).name} ${awards.topScorer.goals}골`
+      tsLine.replaceChildren(iconLabel('soccer-ball',
+        `득점왕 — ${findCareerPlayer(awards.topScorer.playerId).name} ${awards.topScorer.goals}골`))
       summary.appendChild(tsLine)
     }
     const xiLine = document.createElement('div')
@@ -292,7 +296,7 @@ export function renderCareerHome(mountEl) {
     const xiNames = [...xi.GK, ...xi.def, ...xi.mid, ...xi.att]
       .map((row) => findCareerPlayer(row.playerId).name)
     if (xiNames.length > 0) {
-      xiLine.textContent = `⭐ 베스트 XI — ${xiNames.join(', ')}`
+      xiLine.replaceChildren(iconLabel('star', `베스트 XI — ${xiNames.join(', ')}`))
       summary.appendChild(xiLine)
     }
     body.appendChild(summary)
@@ -645,7 +649,8 @@ export function renderCareerMatchday(mountEl) {
       el.className = 'career__chip'
       if (chip.tone === 'good') el.classList.add('career__chip--good')
       if (chip.tone === 'warn') el.classList.add('career__chip--warn')
-      el.textContent = chip.text
+      if (chip.icon) el.appendChild(createIcon(chip.icon, { size: 12 }))
+      el.appendChild(document.createTextNode(chip.text))
       chipRow.appendChild(el)
     }
     body.appendChild(chipRow)
@@ -723,7 +728,7 @@ export function renderCareerMatchday(mountEl) {
         if (motm) {
           const chip = document.createElement('span')
           chip.className = 'chip match__motm'
-          chip.textContent = `⭐ MOTM ${findCareerPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`
+          chip.replaceChildren(iconLabel('star', `MOTM ${findCareerPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`, { size: 14 }))
           playback.controlsBar.appendChild(chip)
         }
       }
@@ -1177,9 +1182,9 @@ function renderGameOver(mountEl, save) {
 
   const banner = document.createElement('div')
   banner.className = 'career__gameover'
-  banner.textContent = save.gameOverReason === 'bankrupt'
-    ? '💸 파산 — 구단 재정이 무너졌다. 보드는 관리 책임을 물어 계약을 해지했다.'
-    : '🪑 경질 — 보드의 신임을 완전히 잃었다.'
+  banner.replaceChildren(save.gameOverReason === 'bankrupt'
+    ? iconLabel('wallet', '파산 — 구단 재정이 무너졌다. 보드는 관리 책임을 물어 계약을 해지했다.', { size: 20 })
+    : iconLabel('armchair', '경질 — 보드의 신임을 완전히 잃었다.', { size: 20 }))
   body.appendChild(banner)
 
   const record = document.createElement('p')

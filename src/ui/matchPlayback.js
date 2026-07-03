@@ -164,10 +164,11 @@ function createPlaybackController(events, refs) {
     }
   }
 
-  function syncFrame() {
+  function syncFrame(dtMs = 0) {
     backend.syncFrame({
       tokens: steeringRefs,
       ball: currentBall(),
+      dtMs, // 백엔드 모션 시계(3D 달리기 스윙 등) — 배속/리플레이 슬로모 자동 반영
     })
   }
 
@@ -232,7 +233,7 @@ function createPlaybackController(events, refs) {
       }
     }
     ballState = advanceBall(ballState, frameMs)
-    syncFrame()
+    syncFrame(frameMs)
     activeRafId = requestAnimationFrame(stepFrame)
   }
 
@@ -260,6 +261,9 @@ function createPlaybackController(events, refs) {
     possessionTeam = possessionTeamOf(event)
     if (!visualOnly) minuteEl.textContent = `${event.minute}'`
 
+    // 킥 모션 트리거 — 비행 전이 직전의 보유자(볼을 보내는 발).
+    const kickerId = ballState.mode === 'held' ? ballState.holderId : null
+
     const flightMs = delayFor(event) * FLIGHT_RATIO
     if (event.type === 'pass') {
       ballState = flightToTokenState(ballScreenPos, event.toId, flightMs)
@@ -278,6 +282,10 @@ function createPlaybackController(events, refs) {
       ballState = flightToTokenState(ballScreenPos, event.gkId, flightMs)
     } else if (event.type === 'goal' || event.type === 'shot_off_target') {
       ballState = flightToPointState(ballScreenPos, goalMouthOf(event.team), flightMs)
+    }
+
+    if (kickerId && (ballState.mode === 'flight' || ballState.mode === 'flightToPoint')) {
+      backend.applyEventVisual({ kind: 'kick', playerId: kickerId })
     }
 
     pullOverrides.clear()
@@ -320,19 +328,19 @@ function createPlaybackController(events, refs) {
       const tackleSpecialist = event.cause === 'tackle'
         && resolvePlayer(event.actorId)?.traits?.includes('tackle_specialist')
       backend.applyEventVisual({
-        kind: 'miniPop', pos: eventPos,
-        text: tackleSpecialist ? '⭐ 태클 장인!' : event.cause === 'tackle' ? '태클!' : '인터셉트!',
+        kind: 'miniPop', pos: eventPos, trait: tackleSpecialist,
+        text: tackleSpecialist ? '태클 장인!' : event.cause === 'tackle' ? '태클!' : '인터셉트!',
       })
     } else if (event.type === 'foul') {
       backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
       backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: event.dangerous ? '파울! 위험한 위치' : '파울' })
     } else if (event.type === 'free_kick'
         && resolvePlayer(event.takerId)?.traits?.includes('free_kick_specialist')) {
-      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '⭐ 프리킥 장인' })
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '프리킥 장인', trait: true })
     } else if ((event.type === 'goal' || event.type === 'shot_saved')
         && (event.via === 'header_corner' || event.via === 'header_fk')
         && resolvePlayer(event.actorId)?.traits?.includes('aerial_threat')) {
-      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '⭐ 공중 지배' })
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '공중 지배', trait: true })
     } else if (event.type === 'clearance') {
       backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
       backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '걷어냄!' })
@@ -347,6 +355,7 @@ function createPlaybackController(events, refs) {
         scoreEl.textContent = `${score.home} - ${score.away}`
       }
       celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
+      backend.applyEventVisual({ kind: 'celebrate', playerId: event.actorId })
       backend.applyEventVisual({ kind: 'flash', variant: 'goal', text: 'GOAL!' })
     } else if (event.type === 'yellow_card') {
       backend.applyEventVisual({ kind: 'flash', variant: 'yellow', text: '' })

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 19-1차: 2D/3D 듀얼 렌더러 — PitchBackend 포트 추출(5단계 독립 커밋), Three.js r185 벤더링, 캡슐 토큰 3D 백엔드, [2D|3D] 전환, verify-anti-float-3d",
+  "objective": "goal 19-2차: 3D 모션(절차적 로우폴리 휴머노이드 — 달리기/킥/셀레브레이션) + 아이콘 통일(Lucide ISC 인라인 + 자체 축구공 SVG)",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T08:12:25.378Z"
+  "updatedAt": "2026-07-03T08:41:02.667Z"
 }

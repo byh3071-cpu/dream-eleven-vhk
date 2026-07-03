@@ -1,22 +1,31 @@
 // 3D 피치 백엔드 — Three.js r185(assets/vendor 정적 2파일, importmap 'three').
-// goal 19 1차 비주얼(사용자 확정): 캡슐 토큰 + 머리 위 이름·등번호 빌보드 + 중계 카메라.
-// 캐릭터 모델/애니메이션(Quaternius CC0)은 2차 goal.
+// goal 19 2차: 캡슐 토큰 → 절차적 로우폴리 휴머노이드 + 코드 모션(사용자 지시
+// "실제 선수처럼" — 달리기 스윙/이동 방향 회전/킥/골 셀레브레이션 점프).
+// 외부 모델·애니메이션 에셋 0(직접 디자인) — CC0 glTF(Quaternius) 교체 경로는
+// goals/19 문서에 열어 뒀다. 모션 시계는 frame.dtMs(컨트롤러 전달)라 배속/리플레이
+// 슬로모가 자동 반영된다.
 //
 // 계약(PitchBackend): 타이머/rAF 미소유 — syncFrame 안에서 renderer.render 1회만.
-// 프레임은 % 논리 좌표: x=(left-50)·W/100, z=(top-50)·L/100 (top 0=화면 위=홈 골문 쪽).
+// 프레임은 % 논리 좌표: x=(left-50)·W/100, z=(top-50)·L/100.
 // held 검증용으로 root에 data-ball-mode/-holder/-held-gap을 미러한다(verify-anti-float-3d).
 //
 // 색: canvas라 var() 해석 불가 — getComputedStyle 토큰 리더(DESIGN.md가 canvas 렌더러
-// 도입 시점에 예정해 둔 헬퍼)를 여기서 처음 도입한다.
+// 도입 시점에 예정해 둔 헬퍼). 씬 전용 색은 --pitch3d-* 토큰.
 
 import * as THREE from 'three'
 import { playerNumberOf } from '../data/player-schema.js'
+import { spawnMiniPop, spawnFlash } from './pitchOverlayFx.js'
 
 const FIELD_W = 68
 const FIELD_L = 100
 const BALL_ARC_HEIGHT = 7
-const CAPSULE_RADIUS = 1.15
-const CAPSULE_LENGTH = 2.2
+const BALL_R = 1.15
+
+// 휴머노이드 치수(로우폴리 — 필드 스케일 대비 과장된 머리/컬러 블록 미학)
+const LEG_LEN = 1.5
+const TORSO_H = 1.7
+const HIP_Y = LEG_LEN + 0.15
+const SHOULDER_Y = HIP_Y + TORSO_H - 0.15
 
 // CSS 변수 문자열('var(--accent-gold)') → 실제 색값. 실패 시 폴백.
 function resolveCssColor(value, fallback = 'gold') {
@@ -54,7 +63,6 @@ function makePitchTexture() {
   g.beginPath()
   g.arc(340, 500, 80, 0, Math.PI * 2)
   g.stroke()
-  // 페널티 박스(양쪽)
   g.strokeRect(170, 10, 340, 140)
   g.strokeRect(170, 850, 340, 140)
   g.strokeRect(255, 10, 170, 55)
@@ -83,7 +91,7 @@ function makeLabelSprite(player, teamColorCss) {
   texture.colorSpace = THREE.SRGBColorSpace
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }))
   sprite.scale.set(10, 3.1, 1)
-  sprite.position.y = CAPSULE_LENGTH + 2.6
+  sprite.position.y = SHOULDER_Y + 2.4
   return sprite
 }
 
@@ -113,16 +121,13 @@ export function createThreePitchBackend() {
   let scene = null
   let camera = null
   let destroyed = false
-  const meshById = new Map()
-  const labelById = new Map()
-  const lungeById = new Map()
+  const rigById = new Map()
   let ballMesh = null
   const disposables = []
 
   const toX = (left) => ((left - 50) / 100) * FIELD_W
   const toZ = (top) => ((top - 50) / 100) * FIELD_L
 
-  // 씬 좌표 → 오버레이 %(팝 배치용 투영).
   function projectToOverlay(pos3) {
     const v = pos3.clone().project(camera)
     return { left: (v.x * 0.5 + 0.5) * 100, top: (-v.y * 0.5 + 0.5) * 100 }
@@ -131,6 +136,54 @@ export function createThreePitchBackend() {
   function track(resource) {
     disposables.push(resource)
     return resource
+  }
+
+  // 절차적 로우폴리 휴머노이드 — 상의(팀색)/하의(팀색 어둡게)/머리(스킨 토큰).
+  // 팔다리는 어깨/힙 "피벗 그룹"에 매달아 rotation.x 스윙만으로 관절 모션을 낸다.
+  function makeHumanoid(shirtColor, phaseSeed) {
+    const group = new THREE.Group()
+    const shirt = new THREE.Color(shirtColor)
+    const shorts = shirt.clone().multiplyScalar(0.45)
+    const shirtMat = track(new THREE.MeshLambertMaterial({ color: shirt, transparent: true }))
+    const shortsMat = track(new THREE.MeshLambertMaterial({ color: shorts, transparent: true }))
+    const skinMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--pitch3d-skin'), transparent: true }))
+
+    const torso = new THREE.Mesh(track(new THREE.BoxGeometry(1.7, TORSO_H, 0.95)), shirtMat)
+    torso.position.y = HIP_Y + TORSO_H / 2
+    group.add(torso)
+
+    const head = new THREE.Mesh(track(new THREE.SphereGeometry(0.62, 12, 10)), skinMat)
+    head.position.y = SHOULDER_Y + 0.75
+    group.add(head)
+
+    const limb = (geoLen, radius, mat) => {
+      const pivot = new THREE.Group()
+      const mesh = new THREE.Mesh(track(new THREE.CapsuleGeometry(radius, geoLen, 3, 8)), mat)
+      mesh.position.y = -(geoLen / 2 + radius)
+      pivot.add(mesh)
+      return pivot
+    }
+
+    const legL = limb(LEG_LEN - 0.55, 0.3, shortsMat)
+    legL.position.set(-0.45, HIP_Y, 0)
+    const legR = limb(LEG_LEN - 0.55, 0.3, shortsMat)
+    legR.position.set(0.45, HIP_Y, 0)
+    const armL = limb(1.0, 0.22, shirtMat)
+    armL.position.set(-1.05, SHOULDER_Y, 0)
+    const armR = limb(1.0, 0.22, shirtMat)
+    armR.position.set(1.05, SHOULDER_Y, 0)
+    group.add(legL, legR, armL, armR)
+
+    group.userData = {
+      legL, legR, armL, armR,
+      mats: [shirtMat, shortsMat, skinMat],
+      phase: phaseSeed * 1.7, // 대기 스윙 위상 분산 — 2D idlePhase와 같은 결정론 방식
+      heading: 0,
+      kickT: 0,
+      celebrateT: 0,
+      prev: null,
+    }
+    return group
   }
 
   return {
@@ -161,7 +214,6 @@ export function createThreePitchBackend() {
       pitch.rotation.x = -Math.PI / 2
       scene.add(pitch)
 
-      // 스탠드 실루엣 — 관중석 암시(낮은 어두운 벽 4면).
       const standMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--bg-panel', 'black') }))
       const standGeoLong = track(new THREE.BoxGeometry(FIELD_W + 26, 7, 9))
       const standGeoSide = track(new THREE.BoxGeometry(9, 7, FIELD_L + 8))
@@ -181,22 +233,21 @@ export function createThreePitchBackend() {
       goalBottom.position.z = FIELD_L / 2
       scene.add(goalBottom)
 
-      const capsuleGeo = track(new THREE.CapsuleGeometry(CAPSULE_RADIUS, CAPSULE_LENGTH, 4, 12))
       for (const token of tokens) {
-        const color = resolveCssColor(teamColors[token.team])
-        const mat = track(new THREE.MeshLambertMaterial({ color, transparent: true }))
-        const mesh = new THREE.Mesh(capsuleGeo, mat)
-        mesh.position.set(toX(token.basePos.left), CAPSULE_RADIUS + CAPSULE_LENGTH / 2, toZ(token.basePos.top))
-        const label = makeLabelSprite(token.player, teamColors[token.team])
-        mesh.add(label)
-        scene.add(mesh)
-        meshById.set(token.playerId, mesh)
-        labelById.set(token.playerId, label)
+        const rig = makeHumanoid(resolveCssColor(teamColors[token.team]), rigById.size)
+        rig.position.set(toX(token.basePos.left), 0, toZ(token.basePos.top))
+        rig.add(makeLabelSprite(token.player, teamColors[token.team]))
+        scene.add(rig)
+        rigById.set(token.playerId, rig)
       }
 
-      const ballMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--pitch3d-ball'), emissive: tokenOf('--pitch3d-ball'), emissiveIntensity: 0.35 }))
-      ballMesh = new THREE.Mesh(track(new THREE.SphereGeometry(1.15, 16, 12)), ballMat)
-      ballMesh.position.set(0, 1.15, 0)
+      const ballMat = track(new THREE.MeshLambertMaterial({
+        color: tokenOf('--pitch3d-ball'),
+        emissive: tokenOf('--pitch3d-ball'),
+        emissiveIntensity: 0.35,
+      }))
+      ballMesh = new THREE.Mesh(track(new THREE.SphereGeometry(BALL_R, 16, 12)), ballMat)
+      ballMesh.position.set(0, BALL_R, 0)
       scene.add(ballMesh)
     },
 
@@ -213,33 +264,74 @@ export function createThreePitchBackend() {
       return !destroyed && document.contains(root)
     },
 
-    syncFrame({ tokens, ball }) {
+    syncFrame({ tokens, ball, dtMs = 0 }) {
       if (destroyed) return
       for (const token of tokens) {
-        const mesh = meshById.get(token.playerId)
-        if (!mesh) continue
-        mesh.position.x = toX(token.current.left)
-        mesh.position.z = toZ(token.current.top)
-        // 런지 감쇠 스케일(3D 네이티브 — CSS 클래스가 메시에 안 붙는다)
-        const lungeT = lungeById.get(token.playerId) ?? 0
-        if (lungeT > 0.01) {
-          const s = 1 + 0.3 * lungeT
-          mesh.scale.set(s, s, s)
-          lungeById.set(token.playerId, lungeT * 0.86)
-        } else if (mesh.scale.x !== 1) {
-          mesh.scale.set(1, 1, 1)
+        const rig = rigById.get(token.playerId)
+        if (!rig) continue
+        const u = rig.userData
+        const x = toX(token.current.left)
+        const z = toZ(token.current.top)
+
+        // 이동 속도(씬 단위/ms) — 모션 진폭·주기의 원천. dtMs가 슬로모/배속을 반영한다.
+        let speed = 0
+        if (u.prev && dtMs > 0) {
+          speed = Math.hypot(x - u.prev.x, z - u.prev.z) / dtMs
+        }
+        rig.position.x = x
+        rig.position.z = z
+
+        // 이동 방향으로 몸통 회전(부드럽게) — "포지션만 지키는 말뚝" 인상 제거.
+        if (u.prev && speed > 0.0012) {
+          const targetHeading = Math.atan2(x - u.prev.x, z - u.prev.z)
+          let delta = targetHeading - u.heading
+          while (delta > Math.PI) delta -= Math.PI * 2
+          while (delta < -Math.PI) delta += Math.PI * 2
+          u.heading += delta * Math.min(1, dtMs / 120)
+          rig.rotation.y = u.heading
+        }
+        u.prev = { x, z }
+
+        // 달리기 스윙 — 다리 교차 + 팔 반대 스윙, 진폭은 속도 비례(정지 시 잔잔한 대기).
+        const amp = 0.08 + Math.min(0.85, speed * 90)
+        u.phase += dtMs * (0.004 + speed * 1.1)
+        const swing = Math.sin(u.phase)
+        u.legL.rotation.x = swing * amp
+        u.legR.rotation.x = -swing * amp
+        u.armL.rotation.x = -swing * amp * 0.75
+        u.armR.rotation.x = swing * amp * 0.75
+
+        // 킥 — 오른발 앞스윙이 달리기 스윙 위에 덮인다(즉발 후 지수 감쇠).
+        if (u.kickT > 0.01) {
+          u.legR.rotation.x = -u.kickT * 1.5
+          u.armL.rotation.x = u.kickT * 0.8
+          if (dtMs > 0) u.kickT *= Math.exp(-dtMs / 130)
+        }
+
+        // 골 셀레브레이션 — 점프 + 만세.
+        if (u.celebrateT > 0.01) {
+          rig.position.y = Math.abs(Math.sin(u.celebrateT * 9)) * 1.4
+          u.armL.rotation.x = Math.PI * 0.9
+          u.armR.rotation.x = Math.PI * 0.9
+          if (dtMs > 0) u.celebrateT *= Math.exp(-dtMs / 700)
+        } else if (rig.position.y !== 0) {
+          rig.position.y = 0
         }
       }
-      const ballY = ball.flightT !== null
-        ? 1.15 + Math.sin(Math.PI * ball.flightT) * BALL_ARC_HEIGHT
-        : 1.15
-      ballMesh.position.set(toX(ball.pos.left), ballY, toZ(ball.pos.top))
 
-      // held 검증 미러 — 씬 xz 평면의 % 거리(verify-anti-float-3d 계약).
+      const ballY = ball.flightT !== null
+        ? BALL_R + Math.sin(Math.PI * ball.flightT) * BALL_ARC_HEIGHT
+        : BALL_R
+      ballMesh.position.set(toX(ball.pos.left), ballY, toZ(ball.pos.top))
+      if (dtMs > 0) {
+        ballMesh.rotation.x += dtMs * 0.01
+        ballMesh.rotation.z += dtMs * 0.004
+      }
+
       root.dataset.ballMode = ball.mode
       root.dataset.holderId = ball.holderId
       if (ball.mode === 'held' && ball.holderId) {
-        const holder = meshById.get(ball.holderId)
+        const holder = rigById.get(ball.holderId)
         if (holder) {
           const dLeft = (ballMesh.position.x - holder.position.x) / FIELD_W * 100
           const dTop = (ballMesh.position.z - holder.position.z) / FIELD_L * 100
@@ -253,43 +345,42 @@ export function createThreePitchBackend() {
     },
 
     applyEventVisual(fx) {
+      if (fx.kind === 'kick') {
+        const rig = rigById.get(fx.playerId)
+        if (rig) rig.userData.kickT = 1
+        return
+      }
+      if (fx.kind === 'celebrate') {
+        const rig = rigById.get(fx.playerId)
+        if (rig) rig.userData.celebrateT = 1
+        return
+      }
       if (fx.kind === 'lunge') {
-        lungeById.set(fx.playerId, 1)
+        const rig = rigById.get(fx.playerId)
+        if (rig) rig.userData.kickT = 0.7 // 태클도 다리 스윙 재사용 — 별도 리깅 없이
         return
       }
       if (fx.kind === 'sendOff') {
-        const mesh = meshById.get(fx.playerId)
-        if (mesh) mesh.material.opacity = 0.3
-        const label = labelById.get(fx.playerId)
-        if (label) label.material.opacity = 0.3
+        const rig = rigById.get(fx.playerId)
+        if (rig) for (const mat of rig.userData.mats) mat.opacity = 0.3
         return
       }
-      // miniPop/flash — DOM 오버레이 재사용(토큰 색 체계·reduced-motion·자가 제거가 CSS에 있음).
       if (fx.kind === 'miniPop') {
-        const pop = document.createElement('div')
-        pop.className = 'match__pop'
-        pop.textContent = fx.text
         const projected = projectToOverlay(new THREE.Vector3(toX(fx.pos.left), 2.5, toZ(fx.pos.top)))
-        pop.style.left = `${projected.left}%`
-        pop.style.top = `${projected.top}%`
-        pop.addEventListener('animationend', () => pop.remove())
-        overlay.appendChild(pop)
+        spawnMiniPop(overlay, { ...fx, pos: projected })
       } else if (fx.kind === 'flash') {
-        const flash = document.createElement('div')
-        flash.className = `match__flash match__flash--${fx.variant}`
-        flash.textContent = fx.text
-        flash.addEventListener('animationend', () => flash.remove())
-        overlay.appendChild(flash)
+        spawnFlash(overlay, fx)
       }
     },
 
     reset() {
-      for (const mesh of meshById.values()) {
-        mesh.scale.set(1, 1, 1)
-        mesh.material.opacity = 1
+      for (const rig of rigById.values()) {
+        const u = rig.userData
+        u.kickT = 0
+        u.celebrateT = 0
+        rig.position.y = 0
+        for (const mat of u.mats) mat.opacity = 1
       }
-      for (const label of labelById.values()) label.material.opacity = 1
-      lungeById.clear()
       overlay.replaceChildren()
     },
 
@@ -297,9 +388,13 @@ export function createThreePitchBackend() {
     destroy() {
       if (destroyed) return
       destroyed = true
-      for (const label of labelById.values()) {
-        label.material.map?.dispose()
-        label.material.dispose()
+      for (const rig of rigById.values()) {
+        rig.traverse((node) => {
+          if (node.isSprite) {
+            node.material.map?.dispose()
+            node.material.dispose()
+          }
+        })
       }
       for (const resource of disposables) resource.dispose?.()
       renderer?.dispose()

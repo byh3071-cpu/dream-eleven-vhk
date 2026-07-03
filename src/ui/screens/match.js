@@ -9,6 +9,7 @@ import { navigate } from '../../router.js'
 import { homePath, ifSquadPath, ifResultPath } from '../../routes.js'
 import { clearActivePlayback, buildPlaybackView } from '../matchPlayback.js'
 import { motmOf } from '../../sim/playerRatings.js'
+import { iconLabel } from '../components/icons.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
 
@@ -165,7 +166,7 @@ export function renderMatch(mountEl) {
       homeSquad11: homeSquad.squad11, awaySquad11: awaySquad.squad11,
     })
     if (!motm) return
-    motmChip.textContent = `\u2b50 MOTM ${findPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`
+    motmChip.replaceChildren(iconLabel('star', `MOTM ${findPlayer(motm.playerId).name} ${motm.value.toFixed(1)}`, { size: 14 }))
     motmChip.hidden = false
   }
 

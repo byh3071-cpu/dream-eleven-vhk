@@ -5,6 +5,7 @@
 
 import { createPlayerBadge } from './components/playerBadge.js'
 import { renderPitchLines } from './components/pitchLines.js'
+import { spawnMiniPop, spawnFlash } from './pitchOverlayFx.js'
 
 export function createDomPitchBackend() {
   const root = document.createElement('div')
@@ -94,19 +95,9 @@ export function createDomPitchBackend() {
 
     applyEventVisual(fx) {
       if (fx.kind === 'miniPop') {
-        const pop = document.createElement('div')
-        pop.className = 'match__pop'
-        pop.textContent = fx.text
-        pop.style.left = `${fx.pos.left}%`
-        pop.style.top = `${fx.pos.top}%`
-        pop.addEventListener('animationend', () => pop.remove())
-        root.appendChild(pop)
+        spawnMiniPop(root, fx)
       } else if (fx.kind === 'flash') {
-        const flash = document.createElement('div')
-        flash.className = `match__flash match__flash--${fx.variant}`
-        flash.textContent = fx.text
-        flash.addEventListener('animationend', () => flash.remove())
-        root.appendChild(flash)
+        spawnFlash(root, fx)
       } else if (fx.kind === 'lunge') {
         const el = elById.get(fx.playerId)
         if (!el) return

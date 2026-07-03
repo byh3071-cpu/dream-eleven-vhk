@@ -93,7 +93,7 @@ export function computePreMatchChips(save, fixture) {
   if (table[0].played > 0) {
     const topTwo = [table[0].clubId, table[1].clubId]
     if (topTwo.includes(fixture.homeClubId) && topTwo.includes(fixture.awayClubId)) {
-      chips.push({ text: '🔥 선두 맞대결 — 1위와 2위의 격돌', tone: 'info' })
+      chips.push({ text: '선두 맞대결 — 1위와 2위의 격돌', tone: 'info', icon: 'flame' })
     }
   }
 

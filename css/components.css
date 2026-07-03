@@ -255,3 +255,24 @@
   object-fit: cover;
 }
 /* designlint-allow-end */
+
+/* ---------- 아이콘(Lucide 서브셋 + 자체 축구공) — 단일 소스 src/ui/components/icons.js ---------- */
+
+.icon {
+  flex-shrink: 0;
+  vertical-align: -0.125em;
+}
+
+.icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.match__pop--trait {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold-bright);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}

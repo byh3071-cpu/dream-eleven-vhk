@@ -88,3 +88,11 @@ canvas/WebGL은 `var()`를 해석하지 못하므로 3D 백엔드는 `getCompute
 렌더러 도입 시점에만 허용"으로 예정해 둔 헬퍼의 첫 실사용. 씬 전용 색(골대/볼/조명/
 라벨 스트로크)은 `--pitch3d-*` 토큰으로 tokens.css에 등록한다(색 리터럴은 여전히
 tokens.css 밖에 못 산다 — designLint가 JS hex를 계속 감시).
+
+## 아이콘 규칙 (goal 19-2)
+
+아이콘 단일 소스는 `src/ui/components/icons.js` — Lucide(ISC) 서브셋 인라인 + 자체 제작
+(soccer-ball, 동일 24x24 stroke 규격). 새 아이콘이 필요하면 lucide-static에서 path를
+가져와 이 파일에만 추가한다(화면 코드에 raw SVG 금지). 전부 currentColor라 색은 토큰을
+상속하고, 파싱은 DOMParser(innerHTML 싱크 금지 — 보안 훅 규칙). UI 크롬은 아이콘,
+커멘터리 같은 서술 텍스트는 이모지 허용(문장 안에서는 이모지가 자연스럽다).
