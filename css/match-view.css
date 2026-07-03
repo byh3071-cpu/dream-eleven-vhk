@@ -18,7 +18,7 @@
 
 .match__pitch {
   position: relative;
-  width: 480px;
+  width: min(480px, 100%);
   aspect-ratio: 68 / 100;
   margin: 0 auto;
   background: var(--pitch-surface);
@@ -53,6 +53,26 @@
   justify-content: center;
   gap: var(--space-24);
   padding: var(--space-8);
+}
+
+.match__scoreboard-center {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+}
+
+.match__team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-weight: 700;
+}
+
+.match__team-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-circle);
+  display: inline-block;
 }
 
 .match__minute {
@@ -154,4 +174,71 @@
 
 @media (prefers-reduced-motion: reduce) {
   .match__flash { animation: match-flash-fade 0.9s linear 0.6s forwards; }
+}
+
+/* ---------- 스테이지: 피치 + 실시간 커멘터리 (UX 패스) ---------- */
+
+/* 좁은 화면(모바일 세로): 세로 스택 — 기존 동작 유지 */
+.match__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* 와이드(데스크톱/모바일 가로): 피치 옆에 커멘터리 — 경기 보면서 실시간 반응 확인
+   (사용자 지적: 채팅이 아래에 있어 플레이 중 보기 불편). */
+@media (min-width: 920px) {
+  .match__stage {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .match__stage .match__commentary {
+    width: 300px;
+    max-width: 300px;
+    max-height: 560px;
+    margin: 0;
+  }
+}
+
+/* ---------- 표현 팝("태클!" 등) ---------- */
+
+.match__pop {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  z-index: var(--z-pitch-overlay);
+  pointer-events: none;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--bg-panel-raised);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  padding: var(--space-2) var(--space-6);
+  animation: match-pop-rise 0.9s var(--ease-decelerate) forwards;
+}
+
+@keyframes match-pop-rise {
+  0% { opacity: 0; translate: 0 6px; }
+  20% { opacity: 1; }
+  100% { opacity: 0; translate: 0 -14px; }
+}
+
+/* ---------- 수비 런지(태클 몸짓) ---------- */
+
+.pitch-slot--lunge .player-badge {
+  animation: match-lunge 0.35s var(--ease-decelerate);
+}
+
+@keyframes match-lunge {
+  0% { scale: 1; rotate: 0deg; }
+  45% { scale: 1.28; rotate: -10deg; }
+  100% { scale: 1; rotate: 0deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match__pop { animation-duration: 0.5s; }
+  .pitch-slot--lunge .player-badge { animation: none; }
 }

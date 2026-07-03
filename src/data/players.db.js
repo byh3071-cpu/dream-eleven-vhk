@@ -91,7 +91,7 @@ export const PLAYERS = [
     traits: ['playmaker_vision'],
   },
   {
-    id: 'xavi', name: '차비 에르난데스', era: 'legend', age: 32,
+    id: 'xavi', name: '사비 에르난데스', shortName: '사비', era: 'legend', age: 32,
     nationality: 'es', club: 'FC 바르셀로나',
     positions: ['CM'],
     stats: { pace: 62, shooting: 65, passing: 94, dribbling: 85, defending: 60, physical: 58 },
@@ -147,7 +147,7 @@ export const PLAYERS = [
     traits: ['left_footed', 'dribbler', 'playmaker_vision'],
   },
   {
-    id: 'van_basten', name: '마르코 반 바스텐', era: 'legend', age: 27,
+    id: 'van_basten', name: '마르코 반 바스텐', shortName: '반바스텐', era: 'legend', age: 27,
     nationality: 'nl', club: 'AC 밀란',
     positions: ['ST'],
     stats: { pace: 82, shooting: 91, passing: 74, dribbling: 83, defending: 35, physical: 78 },
@@ -232,7 +232,7 @@ export const PLAYERS = [
     traits: ['poacher', 'aerial_threat'],
   },
   {
-    id: 'van_nistelrooy', name: '루드 반 니스텔로이', era: 'legend', age: 27,
+    id: 'van_nistelrooy', name: '루드 반 니스텔로이', shortName: '반니', era: 'legend', age: 27,
     nationality: 'nl', club: '맨체스터 유나이티드',
     positions: ['ST'],
     stats: { pace: 80, shooting: 93, passing: 70, dribbling: 75, defending: 30, physical: 82 },

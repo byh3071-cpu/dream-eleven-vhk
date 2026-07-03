@@ -8,7 +8,10 @@ const FONT_SIZES = {
   sm: { short: '13px', mid: '11px', long: '10px' },
 }
 
-function badgeLinesFor(name) {
+function badgeLinesFor(player) {
+  // 한국어 친화 애칭(shortName)이 있으면 우선 — "반 니스텔로이"의 성 추출("니스텔로이")보다
+  // 통용 호칭("반니")이 읽기 좋다는 사용자 지적 반영.
+  const name = player.shortName ?? player.name
   const raw = name.includes(' ') ? name.split(' ').pop() : name
   if (raw.length <= 4) return [raw]
   const mid = Math.ceil(raw.length / 2)
@@ -24,12 +27,14 @@ function fontSizeFor(size, lines) {
 }
 
 // player: { name, era }. size: 'lg'(108px, 카드) | 'sm'(44px, 필드 슬롯)
-export function createPlayerBadge(player, { size = 'lg' } = {}) {
+export function createPlayerBadge(player, { size = 'lg', strokeColor = null } = {}) {
   // 색은 var() 문자열 패스스루 — SVG 속성도 CSS 변수를 해석한다(squadBuilder의 빈 슬롯
   // 뱃지가 이미 이 패턴으로 동작 중). CSS(tokens.css)가 색의 유일한 소스로 유지된다.
   // getComputedStyle로 실값을 읽는 헬퍼는 Canvas 렌더러 도입 시에만(docs/DESIGN.md).
-  const borderColor = player.era === 'legend' ? 'var(--accent-gold)' : 'var(--accent-silver)'
-  const lines = badgeLinesFor(player.name)
+  // strokeColor(옵션): 매치 뷰에서 홈/원정 팀색으로 강제 — era 색(카드/빌더용)보다
+  // "누가 우리 편인가"가 경기 중엔 우선한다(사용자 지적: 팀 분간 불가).
+  const borderColor = strokeColor ?? (player.era === 'legend' ? 'var(--accent-gold)' : 'var(--accent-silver)')
+  const lines = badgeLinesFor(player)
 
   const badge = document.createElement('div')
   badge.className = `player-badge player-badge--${size}`

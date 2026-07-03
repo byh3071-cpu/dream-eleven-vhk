@@ -6,7 +6,7 @@ import { getTacticsState } from './tactics.js'
 import { findPlayer } from '../../data/players.db.js'
 import { simulateMatch } from '../../sim/engine.js'
 import { navigate } from '../../router.js'
-import { ifSquadPath, ifResultPath } from '../../routes.js'
+import { homePath, ifSquadPath, ifResultPath } from '../../routes.js'
 import { clearActivePlayback, buildPlaybackView } from '../matchPlayback.js'
 
 const SIDE_LABEL = { home: '홈', away: '원정' }
@@ -89,7 +89,13 @@ export function renderMatch(mountEl) {
   const title = document.createElement('div')
   title.className = 'topbar__title'
   title.textContent = '경기 관전'
-  topbar.appendChild(title)
+  // 경기 화면에서 나가는 길이 브라우저 뒤로가기뿐이던 문제(사용자 지적) — 상시 홈 링크.
+  const homeLink = document.createElement('button')
+  homeLink.type = 'button'
+  homeLink.className = 'link-button'
+  homeLink.textContent = '← 홈'
+  homeLink.addEventListener('click', () => navigate(homePath()))
+  topbar.append(title, homeLink)
 
   const buildInput = (side) => ({
     squad11: getSquadState(side).squad11,
@@ -115,7 +121,10 @@ export function renderMatch(mountEl) {
     resolvePlayer: findPlayer,
     onKickoffRequest: startNewMatch,
     onPhase: (phase) => {
-      if (phase === 'done') resultLink.hidden = false
+      if (phase === 'done') {
+        resultLink.hidden = false
+        rebuildLink.hidden = false
+      }
     },
   })
 
@@ -134,6 +143,15 @@ export function renderMatch(mountEl) {
   resultLink.addEventListener('click', () => navigate(ifResultPath()))
   playback.controlsBar.appendChild(resultLink)
 
-  screen.append(topbar, playback.scoreboard, playback.pitch, playback.commentary, playback.controlsBar)
+  // 경기 종료 후 바로 팀을 다시 짜러 가는 길(사용자 지적).
+  const rebuildLink = document.createElement('button')
+  rebuildLink.type = 'button'
+  rebuildLink.className = 'link-button'
+  rebuildLink.textContent = '팀 다시 구성 →'
+  rebuildLink.hidden = true
+  rebuildLink.addEventListener('click', () => navigate(ifSquadPath('home')))
+  playback.controlsBar.appendChild(rebuildLink)
+
+  screen.append(topbar, playback.scoreboard, playback.stage, playback.controlsBar)
   mountEl.appendChild(screen)
 }

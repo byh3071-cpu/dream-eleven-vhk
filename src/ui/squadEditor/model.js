@@ -29,8 +29,11 @@ export function unassignSlot(state, slotIndex) {
 export function playerMatchesFilter(player, state) {
   if (state.positionFilter && !player.positions.includes(state.positionFilter)) return false
   const q = state.searchQuery.trim().toLowerCase()
-  if (q && !player.name.toLowerCase().includes(q)) return false
-  return true
+  if (!q) return true
+  // 통용 애칭(shortName: 반니/사비 등)으로도 검색돼야 한다 — UX 검증에서 "반니" 검색이
+  // 본명(반 니스텔로이)만 보다가 빈 결과가 나온 실측 버그.
+  return player.name.toLowerCase().includes(q)
+    || Boolean(player.shortName && player.shortName.toLowerCase().includes(q))
 }
 
 export function getSquad11(state, resolvePlayer) {

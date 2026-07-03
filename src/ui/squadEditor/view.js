@@ -67,7 +67,8 @@ export function renderPitch(state, formation, onSlotClick, { resolvePlayer }) {
 export function renderCardListInto(listEl, state, pool, onPlayerPick, options = {}) {
   const { cardDecorator, isPickDisabled } = options
   listEl.replaceChildren()
-  const matched = pool.filter((p) => options.filterFn(p, state))
+  let matched = pool.filter((p) => options.filterFn(p, state))
+  if (options.sortFn) matched = [...matched].sort(options.sortFn)
   if (matched.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'squad-builder__empty-msg'

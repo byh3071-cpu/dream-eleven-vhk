@@ -47,6 +47,10 @@ export function validatePlayer(player) {
   const errors = []
   if (!player.id || typeof player.id !== 'string') errors.push('id는 비어있지 않은 문자열이어야 함')
   if (!player.name || typeof player.name !== 'string') errors.push('name은 비어있지 않은 문자열이어야 함')
+  // shortName(옵션): 뱃지 표기용 한국어 친화 애칭(반니/사비 등). 없으면 성(姓) 추출.
+  if (player.shortName !== undefined && (typeof player.shortName !== 'string' || player.shortName.length === 0)) {
+    errors.push('shortName은 지정 시 비어있지 않은 문자열이어야 함')
+  }
   if (!ERAS.includes(player.era)) errors.push(`era는 ${ERAS.join('/')} 중 하나여야 함: ${player.era}`)
   if (!Array.isArray(player.positions) || player.positions.length === 0) {
     errors.push('positions는 비어있지 않은 배열이어야 함')

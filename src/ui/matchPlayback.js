@@ -68,6 +68,25 @@ function penaltySpotOf(team) {
   return { left: 50, top: screenTop(88, team) }
 }
 
+// 이벤트 지점에 뜨는 작은 표현 팝("태클!" 등) — 압박/수비 액션의 표현력(사용자 지적).
+function spawnMiniPop(pitchEl, text, pos) {
+  const pop = document.createElement('div')
+  pop.className = 'match__pop'
+  pop.textContent = text
+  pop.style.left = `${pos.left}%`
+  pop.style.top = `${pos.top}%`
+  pop.addEventListener('animationend', () => pop.remove())
+  pitchEl.appendChild(pop)
+}
+
+// 수비자 런지(태클 순간의 몸짓) — 클래스만 붙이고 애니메이션 종료 시 스스로 뗀다.
+function lunge(refsById, playerId) {
+  const ref = refsById.get(playerId)
+  if (!ref) return
+  ref.el.classList.add('pitch-slot--lunge')
+  ref.el.addEventListener('animationend', () => ref.el.classList.remove('pitch-slot--lunge'), { once: true })
+}
+
 function spawnFlash(pitchEl, text, variant) {
   const flash = document.createElement('div')
   flash.className = `match__flash match__flash--${variant}`
@@ -100,17 +119,18 @@ export function clearActivePlayback() {
   clearActiveRaf()
 }
 
-function renderStaticSlot(entry, team, steeringRefs) {
+function renderStaticSlot(entry, team, steeringRefs, teamColor) {
   const el = document.createElement('div')
   el.className = 'pitch-slot pitch-slot--static'
   el.dataset.playerId = entry.player.id
   const basePos = { left: entry.slot.x, top: screenTop(entry.slot.y, team) }
   el.style.left = `${basePos.left}%`
   el.style.top = `${basePos.top}%`
-  el.appendChild(createPlayerBadge(entry.player, { size: 'sm' }))
+  el.appendChild(createPlayerBadge(entry.player, { size: 'sm', strokeColor: teamColor }))
   const name = document.createElement('div')
   name.className = 'pitch-slot__name'
-  name.textContent = entry.player.name
+  name.style.color = teamColor
+  name.textContent = entry.player.shortName ?? entry.player.name
   el.appendChild(name)
   steeringRefs.push({
     el, basePos, team, playerId: entry.player.id,
@@ -166,6 +186,14 @@ function createPlaybackController(events, refs) {
     if (pos) ballScreenPos = pos
     ballEl.style.left = `${ballScreenPos.left}%`
     ballEl.style.top = `${ballScreenPos.top}%`
+    // 비행 중 아크: 포물선 느낌의 스케일(뜸->내려앉음) — 평면 이동의 밋밋함 완화.
+    if (ballState.mode === 'flight' || ballState.mode === 'flightToPoint') {
+      const t = Math.min(1, ballState.elapsedMs / ballState.durationMs)
+      const arc = 1 + Math.sin(Math.PI * t) * 0.45
+      ballEl.style.transform = `translate(-50%, -50%) scale(${arc.toFixed(3)})`
+    } else {
+      ballEl.style.transform = 'translate(-50%, -50%)'
+    }
     syncBallDebugDataset()
   }
 
@@ -308,6 +336,19 @@ function createPlaybackController(events, refs) {
 
     renderBall()
 
+    if (event.type === 'turnover_buildup') {
+      lunge(refsById, event.actorId)
+      spawnMiniPop(pitchEl, event.cause === 'tackle' ? '태클!' : '인터셉트!', eventPos)
+    } else if (event.type === 'foul') {
+      lunge(refsById, event.actorId)
+      spawnMiniPop(pitchEl, event.dangerous ? '파울! 위험한 위치' : '파울', eventPos)
+    } else if (event.type === 'clearance') {
+      lunge(refsById, event.actorId)
+      spawnMiniPop(pitchEl, '걷어냄!', eventPos)
+    } else if (event.type === 'offside') {
+      spawnMiniPop(pitchEl, '오프사이드', eventPos)
+    }
+
     if (event.type === 'goal') {
       if (event.team === 'A') score.home++
       else score.away++
@@ -449,26 +490,43 @@ function renderControls(onKickoff, onTogglePause, onSetSpeed, onSkip) {
 export function buildPlaybackView({
   homeSquad11, homeFormation, awaySquad11, awayFormation,
   tacticsBySide, resolvePlayer, onKickoffRequest, onPhase,
+  // 팀 구분(사용자 지적: 홈/원정 분간 불가): 뱃지 테두리+이름+스코어보드 태그에 반영.
+  teamColors = { A: 'var(--accent-gold)', B: 'var(--club-glacier)' },
+  teamLabels = { A: '홈', B: '원정' },
 }) {
   const scoreboard = document.createElement('div')
   scoreboard.className = 'match__scoreboard'
+  const makeTeamTag = (team) => {
+    const tag = document.createElement('span')
+    tag.className = 'match__team-tag'
+    const dot = document.createElement('span')
+    dot.className = 'match__team-dot'
+    dot.style.background = teamColors[team]
+    const label = document.createElement('span')
+    label.textContent = teamLabels[team]
+    tag.append(dot, label)
+    return tag
+  }
+  const center = document.createElement('span')
+  center.className = 'match__scoreboard-center'
   const minuteEl = document.createElement('span')
   minuteEl.className = 'match__minute'
   minuteEl.textContent = "0'"
   const scoreEl = document.createElement('span')
   scoreEl.className = 'match__score'
   scoreEl.textContent = '0 - 0'
-  scoreboard.append(minuteEl, scoreEl)
+  center.append(minuteEl, scoreEl)
+  scoreboard.append(makeTeamTag('A'), center, makeTeamTag('B'))
 
   const pitch = document.createElement('div')
   pitch.className = 'match__pitch'
   pitch.appendChild(renderPitchLines())
   const steeringRefs = []
   for (const entry of withSlotPositions(homeSquad11, homeFormation)) {
-    pitch.appendChild(renderStaticSlot(entry, 'A', steeringRefs))
+    pitch.appendChild(renderStaticSlot(entry, 'A', steeringRefs, teamColors.A))
   }
   for (const entry of withSlotPositions(awaySquad11, awayFormation)) {
-    pitch.appendChild(renderStaticSlot(entry, 'B', steeringRefs))
+    pitch.appendChild(renderStaticSlot(entry, 'B', steeringRefs, teamColors.B))
   }
   const ball = document.createElement('div')
   ball.className = 'match__ball'
@@ -524,8 +582,14 @@ export function buildPlaybackView({
     () => { if (controller) controller.skipToEnd() },
   )
 
+  // 피치+커멘터리를 한 스테이지로 묶는다 — 와이드 화면에서 나란히(실시간 채팅 느낌),
+  // 좁은 화면에선 세로 스택(css/match-view.css 미디어쿼리). 사용자 지적 반영.
+  const stage = document.createElement('div')
+  stage.className = 'match__stage'
+  stage.append(pitch, commentary)
+
   return {
-    scoreboard, pitch, commentary, controlsBar: ui.bar,
+    scoreboard, pitch, commentary, stage, controlsBar: ui.bar,
     // 결과 장착(+즉시 재생 시작). IF 재대결은 새 결과로 다시 호출하면 된다.
     setResult(result) {
       controller = createPlaybackController(result.events, {

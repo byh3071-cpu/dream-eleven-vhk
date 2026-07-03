@@ -415,6 +415,8 @@ export function renderCareerSquad(mountEl) {
     }, {
       positions: POSITIONS,
       filterFn: playerMatchesFilter,
+      // 긴 스크롤 완화 1차: 레이팅 내림차순 - 상위 자원이 먼저 보인다(사용자 지적).
+      sortFn: (a, b) => playerOverallRating(b) - playerOverallRating(a),
       cardDecorator: (card, player) => card.appendChild(suspensionChip(player, save)),
       isPickDisabled: (player) => isSuspended(save.playerState, player.id),
     }))
@@ -608,12 +610,17 @@ export function renderCareerMatchday(mountEl) {
   actions.appendChild(instant)
   body.appendChild(actions)
 
+  const homeClub = findClub(fixture.homeClubId)
+  const awayClub = findClub(fixture.awayClubId)
   const playback = buildPlaybackView({
     homeSquad11: sim.input.home.squad11,
     homeFormation: sim.input.home.formation,
     awaySquad11: sim.input.away.squad11,
     awayFormation: sim.input.away.formation,
     tacticsBySide: { A: sim.input.home.tactics, B: sim.input.away.tactics },
+    // 구단 색/이름으로 팀 구분(사용자 지적) — IF의 홈/원정 기본색 대신 실제 구단 정체성.
+    teamColors: { A: homeClub.color, B: awayClub.color },
+    teamLabels: { A: homeClub.short, B: awayClub.short },
     resolvePlayer: findCareerPlayer,
     onKickoffRequest: () => playback.setResult(sim.result),
     onPhase: (phase) => {
@@ -629,7 +636,7 @@ export function renderCareerMatchday(mountEl) {
   finishBtn.addEventListener('click', finish)
   playback.controlsBar.appendChild(finishBtn)
 
-  body.append(playback.scoreboard, playback.pitch, playback.commentary, playback.controlsBar)
+  body.append(playback.scoreboard, playback.stage, playback.controlsBar)
   screen.appendChild(body)
   mountEl.appendChild(screen)
 }

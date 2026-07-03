@@ -5,7 +5,7 @@
 import { PLAYERS, findPlayer } from '../../data/players.db.js'
 import { POSITIONS } from '../../data/player-schema.js'
 import { FORMATIONS, findFormation } from '../../data/formations.js'
-import { computeTeamRatings, overallStrength } from '../../sim/teamStrength.js'
+import { computeTeamRatings, overallStrength, playerOverallRating } from '../../sim/teamStrength.js'
 import { navigate } from '../../router.js'
 import { ifTacticsPath } from '../../routes.js'
 import {
@@ -126,13 +126,21 @@ export function renderSquadBuilder(mountEl, params) {
 
   topbar.append(title, topbarRight)
 
+  // 상호 배제: 반대편(홈<->원정)에 이미 배정된 선수는 이쪽 풀에서 제외 — 같은 선수가
+  // 양팀에 동시에 서는 비현실(사용자 지적: 카푸가 양팀 출전)을 차단한다.
+  const otherSide = side === 'home' ? 'away' : 'home'
+  const usedByOther = new Set(state[otherSide].assignments.map((a) => a.playerId))
+  const pool = PLAYERS.filter((p) => !usedByOther.has(p.id))
+
   const body = document.createElement('div')
   body.className = 'squad-builder__body'
   body.append(
     renderPitch(sideState, formation, onSlotClick, { resolvePlayer: findPlayer }),
-    renderListPanel(sideState, PLAYERS, { onPlayerPick, onFilterChange }, {
+    renderListPanel(sideState, pool, { onPlayerPick, onFilterChange }, {
       positions: POSITIONS,
       filterFn: playerMatchesFilter,
+      // 긴 스크롤 완화 1차: 레이팅 내림차순 - 상위 자원이 먼저 보인다(사용자 지적).
+      sortFn: (a, b) => playerOverallRating(b) - playerOverallRating(a),
     }))
 
   screen.append(topbar, renderFormationChips(sideState, onFormationChange), body)

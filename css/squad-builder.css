@@ -25,7 +25,7 @@
 
 .squad-builder__pitch {
   position: relative;
-  width: 360px;
+  width: min(360px, 100%);
   aspect-ratio: 68 / 100;
   flex-shrink: 0;
   background: var(--pitch-surface);
@@ -89,3 +89,11 @@
   width: 100%;
 }
 
+
+/* 모바일(세로): 피치+리스트를 세로 스택 — 390px에서 가로 오버플로 실측(UX 패스). */
+@media (max-width: 760px) {
+  .squad-builder__body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
