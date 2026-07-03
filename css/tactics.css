@@ -7,13 +7,13 @@
 
 .tactics__section-label {
   font-weight: 700;
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--space-8); /* 스냅: 0.6rem에서 */
 }
 
 .tactics__section-hint {
   color: var(--text-dim);
-  font-size: 0.82rem;
-  margin-top: 0.35rem;
+  font-size: var(--text-xs); /* 스냅: 0.82rem에서 */
+  margin-top: var(--space-6); /* 스냅: 0.35rem에서 */
 }
 
 .tactics__mentality-chips {

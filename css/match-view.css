@@ -77,7 +77,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--space-6); /* 스냅: 0.35rem에서 */
   padding: var(--space-12);
   background: var(--bg-panel);
   border: var(--border-panel);
@@ -98,13 +98,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: var(--space-8); /* 스냅: 0.6rem에서 */
   flex-wrap: wrap;
 }
 
 .match__speed-group {
   display: flex;
-  gap: 0.3rem;
+  gap: var(--space-4); /* 스냅: 0.3rem에서 */
 }
 
 .match__controls .chip:disabled {
