@@ -125,6 +125,61 @@ export function createThreePitchBackend() {
   let ballMesh = null
   const disposables = []
 
+  // ---------- 카메라 연출(goal 19-3) — 순수 뷰, 판정/컨트롤러 무영향 ----------
+  // 프리셋 3종 + 볼 소프트 팔로우 + 골 줌인. 모든 보간이 dtMs 기반이라
+  // 배속/리플레이 슬로모에 자동 연동된다(줌·팬이 함께 느려지는 게 연출 포인트).
+  const CAMERA_PRESETS = [
+    { name: '중계 캠', pos: [0, 82, 92], look: [0, 0, 4], followPan: 0.3 },
+    { name: '사이드 캠', pos: [-105, 42, 0], look: [0, 0, 0], followPan: 0 },
+    { name: '골뒤 캠', pos: [0, 26, 132], look: [0, 2, -20], followPan: 0.15 },
+  ]
+  const cameraRig = {
+    presetIndex: 0,
+    lookTarget: null, // Vector3 — 볼 위치로 지수 lerp
+    zoomT: 0, // 골 줌 펄스(1→0 감쇠, sin π 커브로 in-out 한 사이클)
+    zoomFocus: null, // 득점자 위치 스냅샷
+  }
+
+  function applyCameraFrame(ballPos3, dtMs) {
+    const preset = CAMERA_PRESETS[cameraRig.presetIndex]
+    if (!cameraRig.lookTarget) cameraRig.lookTarget = new THREE.Vector3(...preset.look)
+
+    // 볼 소프트 팔로우 — lookAt은 볼 65% + 프리셋 기준 35% 혼합점으로 지수 추적.
+    const desiredLook = new THREE.Vector3(
+      ballPos3.x * 0.65 + preset.look[0] * 0.35,
+      preset.look[1],
+      ballPos3.z * 0.65 + preset.look[2] * 0.35,
+    )
+    const lookAlpha = dtMs > 0 ? Math.min(1, dtMs / 600) : 1
+    cameraRig.lookTarget.lerp(desiredLook, lookAlpha)
+
+    // 기본 위치 = 프리셋 + 약한 팬(x축만 — 멀미 방지로 y/z 고정).
+    const basePos = new THREE.Vector3(
+      preset.pos[0] + ballPos3.x * preset.followPan,
+      preset.pos[1],
+      preset.pos[2],
+    )
+
+    // 골 줌인 — zoomT 1→0 감쇠, sin(π·(1-zoomT))가 0→1→0 펄스를 만든다.
+    let pos = basePos
+    if (cameraRig.zoomT > 0.02 && cameraRig.zoomFocus) {
+      const pulse = Math.sin(Math.PI * (1 - cameraRig.zoomT))
+      const zoomPos = new THREE.Vector3(
+        cameraRig.zoomFocus.x * 0.75,
+        preset.pos[1] * 0.42,
+        cameraRig.zoomFocus.z * 0.75 + 34,
+      )
+      pos = basePos.clone().lerp(zoomPos, pulse * 0.8)
+      if (dtMs > 0) cameraRig.zoomT *= Math.exp(-dtMs / 1000)
+    } else if (cameraRig.zoomT !== 0) {
+      cameraRig.zoomT = 0
+    }
+
+    const posAlpha = dtMs > 0 ? Math.min(1, dtMs / 400) : 1
+    camera.position.lerp(pos, posAlpha)
+    camera.lookAt(cameraRig.lookTarget)
+  }
+
   const toX = (left) => ((left - 50) / 100) * FIELD_W
   const toZ = (top) => ((top - 50) / 100) * FIELD_L
 
@@ -186,9 +241,19 @@ export function createThreePitchBackend() {
     return group
   }
 
+  // 카메라 프리셋 순환 칩 — 3D 전용 컨트롤(extraControls 소유권 원칙).
+  const cameraBtn = document.createElement('button')
+  cameraBtn.type = 'button'
+  cameraBtn.className = 'chip'
+  cameraBtn.textContent = CAMERA_PRESETS[0].name
+  cameraBtn.addEventListener('click', () => {
+    cameraRig.presetIndex = (cameraRig.presetIndex + 1) % CAMERA_PRESETS.length
+    cameraBtn.textContent = CAMERA_PRESETS[cameraRig.presetIndex].name
+  })
+
   return {
     root,
-    extraControls: [],
+    extraControls: [cameraBtn],
 
     mount({ tokens, teamColors }) {
       renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -200,8 +265,8 @@ export function createThreePitchBackend() {
       scene.background = new THREE.Color(tokenOf('--bg-primary', 'black'))
 
       camera = new THREE.PerspectiveCamera(42, 68 / 100, 0.1, 500)
-      camera.position.set(0, 82, 92)
-      camera.lookAt(0, 0, 4)
+      camera.position.set(...CAMERA_PRESETS[0].pos)
+      camera.lookAt(...CAMERA_PRESETS[0].look)
 
       scene.add(new THREE.HemisphereLight(tokenOf('--pitch3d-sky'), tokenOf('--pitch3d-ground'), 1.15))
       const sun = new THREE.DirectionalLight(tokenOf('--pitch3d-sun'), 1.4)
@@ -328,6 +393,8 @@ export function createThreePitchBackend() {
         ballMesh.rotation.z += dtMs * 0.004
       }
 
+      applyCameraFrame(ballMesh.position, dtMs)
+
       root.dataset.ballMode = ball.mode
       root.dataset.holderId = ball.holderId
       if (ball.mode === 'held' && ball.holderId) {
@@ -352,7 +419,11 @@ export function createThreePitchBackend() {
       }
       if (fx.kind === 'celebrate') {
         const rig = rigById.get(fx.playerId)
-        if (rig) rig.userData.celebrateT = 1
+        if (rig) {
+          rig.userData.celebrateT = 1
+          cameraRig.zoomT = 1
+          cameraRig.zoomFocus = rig.position.clone()
+        }
         return
       }
       if (fx.kind === 'lunge') {
@@ -374,6 +445,12 @@ export function createThreePitchBackend() {
     },
 
     reset() {
+      cameraRig.presetIndex = 0
+      cameraRig.zoomT = 0
+      cameraRig.zoomFocus = null
+      cameraRig.lookTarget = null
+      cameraBtn.textContent = CAMERA_PRESETS[0].name
+      camera?.position.set(...CAMERA_PRESETS[0].pos)
       for (const rig of rigById.values()) {
         const u = rig.userData
         u.kickT = 0

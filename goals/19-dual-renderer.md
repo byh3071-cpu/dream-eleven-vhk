@@ -54,3 +54,11 @@ priority: P1
 - **pitchOverlayFx.js 공용화**: miniPop/flash를 2D/3D 백엔드가 문자 그대로 공유.
 - 검증: 게이트 전부 재통과(anti-float 2D/3D — held 121샘플 위반 0), 테스트 274,
   휴머노이드/아이콘 스크린샷 실측.
+
+## 3차 (goal 19-3 — 카메라 연출)
+- cameraRig(백엔드 내부, dtMs 기반 — 슬로모/배속 자동 연동): ①볼 소프트 팔로우
+  (lookAt 지수 lerp + 중계 프리셋 x축 30% 팬, 멀미 방지 y/z 고정) ②골 줌인
+  (celebrate fx → 득점자 방향 sin π 펄스 돌리인-복귀 한 사이클) ③프리셋 순환 칩
+  (중계/사이드/골뒤 — 3D extraControls 소유권 원칙, 1s lerp 전환). reset이 카메라 복원.
+- 검증: anti-float-3d 재통과(계약 무변경), 실측 스크린샷 — 골 줌+REPLAY 슬로모+
+  프리셋 3종. 판정/컨트롤러/2D 무접촉(순수 뷰).
