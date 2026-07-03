@@ -2,18 +2,18 @@
   max-width: 480px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-16);
 }
 
 .match__guard-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
+  gap: var(--space-16);
+  padding: var(--space-12) var(--space-16);
   background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
 }
 
 .match__pitch {
@@ -21,9 +21,9 @@
   width: 480px;
   aspect-ratio: 68 / 100;
   margin: 0 auto;
-  background: radial-gradient(ellipse at 50% 50%, #16321f 0%, #0e2015 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  background: var(--pitch-surface);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
   overflow: hidden;
 }
 
@@ -34,31 +34,27 @@
   height: 100%;
 }
 
-.pitch-slot--static {
-  cursor: default;
-}
-
 .match__ball {
   position: absolute;
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--accent-gold-bright);
-  box-shadow: 0 0 6px 1px rgba(255, 216, 115, 0.7);
+  box-shadow: var(--shadow-glow-gold);
   transform: translate(-50%, -50%);
   /* 0.5s이던 시절엔 이벤트 간격이 550ms라 다음 이벤트 직전에 도착하는 정도로 맞았는데,
      M8 볼경로 확장 후 progression 이벤트 캐던스(180ms)가 훨씬 짧아져서 0.5s를 그대로 두면
      transition이 매번 중간에 끊기고 처음의 느린 구간부터 재출발 — 목표에 도달을 못 하고
      계속 뒤처지며 기어가는 것처럼 보인다(오히려 순간이동보다 나쁨). 캐던스보다 짧게 유지. */
-  transition: left 0.15s ease, top 0.15s ease;
+  transition: left var(--duration-ball-travel) var(--ease-standard), top var(--duration-ball-travel) var(--ease-standard);
 }
 
 .match__scoreboard {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
-  padding: 0.5rem;
+  gap: var(--space-24);
+  padding: var(--space-8);
 }
 
 .match__minute {
@@ -67,7 +63,7 @@
 }
 
 .match__score {
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   font-weight: 800;
   color: var(--accent-gold-bright);
   font-variant-numeric: tabular-nums;
@@ -82,14 +78,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding: 0.75rem;
+  padding: var(--space-12);
   background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
 }
 
 .match__commentary-line {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-dim);
 }
 
@@ -112,6 +108,6 @@
 }
 
 .match__controls .chip:disabled {
-  opacity: 0.35;
+  opacity: var(--opacity-disabled);
   cursor: default;
 }

@@ -1,0 +1,120 @@
+/* 스타일가이드 화면 전용. 개발 지그라서 여기만은 데모용 스타일이 허용되지만,
+   색은 여전히 토큰만 쓴다(designLint 감시 대상에 포함). */
+
+.styleguide__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+  max-width: 960px;
+}
+
+.styleguide__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.styleguide__heading {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin: 0;
+  padding-bottom: var(--space-8);
+  border-bottom: var(--border-panel);
+}
+
+.styleguide__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+}
+
+.styleguide__row-label {
+  width: 160px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  padding-top: var(--space-4);
+}
+
+.styleguide__token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-12);
+}
+
+.styleguide__token {
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.styleguide__token-preview {
+  height: 40px;
+  border-radius: var(--radius-6);
+  border: var(--border-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.styleguide__token-preview--text {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  padding: 0 var(--space-8);
+  text-align: center;
+}
+
+.styleguide__space-bar {
+  height: 8px;
+  background: var(--accent-gold);
+  border-radius: var(--radius-full);
+}
+
+.styleguide__radius-box {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--accent-silver);
+}
+
+.styleguide__shadow-box {
+  width: 48px;
+  height: 24px;
+  background: var(--bg-panel-raised);
+  border-radius: var(--radius-6);
+}
+
+.styleguide__token-name {
+  font-size: var(--text-xs);
+  color: var(--accent-gold-bright);
+  word-break: break-all;
+}
+
+.styleguide__token-value {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.styleguide__pitch-demo {
+  position: relative;
+  width: 240px;
+  aspect-ratio: 68 / 100;
+  background: var(--pitch-surface);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
+  overflow: hidden;
+}
+
+.styleguide__pitch-demo svg.pitch-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

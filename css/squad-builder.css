@@ -1,15 +1,15 @@
-/* 스쿼드 빌더 화면. 카드 스타일(.player-card*)은 verify-cards.html에서 사용자 확인을 5차례
-   거쳐 확정된 값을 그대로 이식한 것 — 임의로 재유도하지 말 것. */
+/* 스쿼드 빌더 화면 전용 스타일. 공용 컴포넌트(.pitch-slot / .player-badge / .player-card
+   계열)는 css/components.css로 이사했다 — 여기엔 이 화면만 쓰는 클래스만 남긴다. */
 
 .squad-builder__strength {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--accent-gold-bright);
 }
 
 .squad-builder__formation-chips {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-8);
   flex-wrap: wrap;
 }
 
@@ -17,7 +17,7 @@
   flex: 1;
   display: flex;
   align-items: flex-start;
-  gap: 1.25rem;
+  gap: var(--space-20);
   min-height: 0;
 }
 
@@ -28,9 +28,9 @@
   width: 360px;
   aspect-ratio: 68 / 100;
   flex-shrink: 0;
-  background: radial-gradient(ellipse at 50% 50%, #16321f 0%, #0e2015 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  background: var(--pitch-surface);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
   overflow: hidden;
 }
 
@@ -41,46 +41,6 @@
   height: 100%;
 }
 
-.pitch-slot {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 52px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: inherit;
-}
-
-.pitch-slot--empty .player-badge svg.hex polygon {
-  stroke-dasharray: 4 3;
-}
-
-.pitch-slot__role {
-  position: relative;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-.pitch-slot__name {
-  font-size: 10px;
-  color: var(--text-primary);
-  max-width: 56px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pitch-slot--selected .player-badge svg.hex polygon {
-  stroke: var(--accent-gold-bright);
-  stroke-width: 3;
-}
-
 /* ---------- 리스트 패널 ---------- */
 
 .squad-builder__list-panel {
@@ -88,13 +48,13 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-12);
 }
 
 .squad-builder__search {
   background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
   padding: 0.6rem 0.9rem;
   color: var(--text-primary);
   font-family: inherit;
@@ -119,159 +79,13 @@
   flex-wrap: wrap;
   gap: 14px;
   align-content: flex-start;
-  padding: 4px 2px;
+  padding: var(--space-4) var(--space-2);
 }
 
 .squad-builder__empty-msg {
   color: var(--text-dim);
-  padding: 2rem 0;
+  padding: var(--space-32) 0;
   text-align: center;
   width: 100%;
 }
 
-/* ---------- 선수 뱃지 (헥스+이름, 카드/필드슬롯 공용 — playerBadge.js) ---------- */
-
-.player-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.player-badge svg.hex {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.player-badge__name {
-  position: relative;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  text-align: center;
-}
-
-.player-badge--lg {
-  width: 108px;
-  height: 108px;
-}
-
-.player-badge--lg .player-badge__name {
-  line-height: 1.15;
-}
-
-.player-badge--sm {
-  width: 44px;
-  height: 44px;
-}
-
-.player-badge--sm .player-badge__name {
-  line-height: 1.05;
-}
-
-/* ---------- 선수 카드 (verify-cards.html 확정본 그대로) ---------- */
-
-.player-card {
-  width: 196px;
-  background: linear-gradient(165deg, var(--bg-panel-raised) 0%, var(--bg-panel) 78%);
-  border: 1px solid var(--border-subtle);
-  clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
-  padding: 18px 16px 20px;
-  position: relative;
-  cursor: pointer;
-}
-
-.player-card--assigned {
-  opacity: 0.4;
-}
-
-.player-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 14px;
-}
-
-.player-card__rating {
-  font-size: 30px;
-  font-weight: 800;
-  color: var(--accent-gold-bright);
-  line-height: 1;
-}
-
-.player-card__pos {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dim);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: 3px 7px;
-  margin-top: 5px;
-}
-
-.player-card__era {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--bg-primary);
-  background: var(--accent-silver);
-  border-radius: 3px;
-  padding: 3px 6px;
-}
-
-.player-card__era--legend {
-  background: var(--accent-gold);
-}
-
-.player-card .player-badge {
-  margin: 4px auto 12px;
-}
-
-.player-card__nickname {
-  text-align: center;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 10px;
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player-card__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-top: 9px;
-}
-
-.player-card__meta-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-
-.player-card__meta-row .lead {
-  width: 18px;
-  height: 13px;
-  flex-shrink: 0;
-}
-
-.player-card__meta-row .lead.flag {
-  border-radius: 1px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
-}
-
-.player-card__meta-row .lead.flag img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}

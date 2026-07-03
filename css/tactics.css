@@ -2,7 +2,7 @@
   max-width: 560px;
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: var(--space-28);
 }
 
 .tactics__section-label {
@@ -18,19 +18,19 @@
 
 .tactics__mentality-chips {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-8);
   flex-wrap: wrap;
 }
 
 .tactics__slider-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-12);
 }
 
 .tactics__slider-edge {
   color: var(--text-dim);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   width: 64px;
   flex-shrink: 0;
 }
@@ -50,5 +50,5 @@
   text-align: right;
   color: var(--accent-gold-bright);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }

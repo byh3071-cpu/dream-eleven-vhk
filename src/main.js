@@ -3,6 +3,7 @@ import { renderSquadBuilder } from './ui/screens/squadBuilder.js'
 import { renderTactics } from './ui/screens/tactics.js'
 import { renderMatch } from './ui/screens/match.js'
 import { renderResult } from './ui/screens/result.js'
+import { renderStyleguide } from './ui/screens/styleguide.js'
 
 function renderHome(mountEl) {
   const screen = document.createElement('div')
@@ -29,5 +30,7 @@ registerRoute('/squad/:side', renderSquadBuilder)
 registerRoute('/tactics/:side', renderTactics)
 registerRoute('/match', renderMatch)
 registerRoute('/result', renderResult)
+// 개발 지그 — 모드 네임스페이스 밖 상시 노출(디자인 시스템 단일 소스 뷰)
+registerRoute('/styleguide', renderStyleguide)
 
 startRouter(document.getElementById('app'))

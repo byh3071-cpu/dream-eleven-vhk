@@ -1,0 +1,101 @@
+/* 디자인 토큰 — 이 파일은 :root 선언 전용이다. 셀렉터/컴포넌트 스타일 금지.
+   (tests/design/designLint.test.js가 기계적으로 강제하고, scripts/export-tokens.mjs가
+   이 구조를 전제로 Figma Tokens JSON을 뽑는다 — 규칙 전문은 docs/DESIGN.md)
+
+   네이밍 규칙:
+   - 색/모션/z-index/보더/그림자: 시맨틱 이름 (--color-danger, --duration-fast)
+   - 간격/radius: 값 인코딩(px 숫자 = 스펙) (--space-16 = 16px = 1rem)
+   - 타입: 티셔츠 사이즈 (--text-sm)
+
+   예외(여기 토큰을 참조하지 않는 리터럴): .player-card 계열과 .player-badge 계열의
+   확정값, playerBadge.js FONT_SIZES — verify-cards.html에서 사용자 확인 5차례로 확정된
+   값이라 전역 토큰 리튠이 카드를 못 건드리게 의도적으로 분리해뒀다(DESIGN.md 잠금 목록).
+   주의: CSS 주석 안에서 "별표 뒤 슬래시" 패턴은 주석을 조기 종료시켜 파일 전체를
+   깨뜨린다 — 클래스 와일드카드 표기는 "계열"로 풀어 쓸 것(실제로 겪은 사고). */
+
+:root {
+  /* ---------- 색: 배경/텍스트/액센트 (v1부터 쓰던 이름 그대로) ---------- */
+  --bg-primary: #0b0e14;
+  --bg-panel: #151a24;
+  --bg-panel-raised: #1c2230;
+  --accent-gold: #f0b429;
+  --accent-gold-bright: #ffd873;
+  --accent-silver: #9ca3af;
+  --text-primary: #f5f5f0;
+  --text-dim: #8b93a7;
+  --border-subtle: #262d3d;
+
+  /* ---------- 색: 시맨틱 상태 ---------- */
+  --color-danger: #e05d5d;
+  --color-success: #5fb87a; /* danger와 같은 채도 톤으로 맞춘 제안값 — /styleguide에서 확정 */
+  --color-warning: #e0b45d;
+  --color-info: #5d9de0;
+
+  /* ---------- 색: 피치(경기장) ---------- */
+  --pitch-grass-light: #16321f;
+  --pitch-grass-dark: #0e2015;
+  --pitch-surface: radial-gradient(ellipse at 50% 50%, var(--pitch-grass-light) 0%, var(--pitch-grass-dark) 100%);
+  --pitch-line: rgba(240, 244, 240, 0.35);
+  --glow-gold: rgba(255, 216, 115, 0.7);
+  --border-faint: rgba(255, 255, 255, 0.15);
+
+  /* ---------- 간격 (4px 기반 + 6px 하프스텝, rem 표기 = px÷16) ---------- */
+  --space-2: 0.125rem;
+  --space-4: 0.25rem;
+  --space-6: 0.375rem;
+  --space-8: 0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-20: 1.25rem;
+  --space-24: 1.5rem;
+  --space-28: 1.75rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+
+  /* ---------- 타입 스케일 ---------- */
+  --text-xs: 0.8rem;
+  --text-sm: 0.85rem;
+  --text-md: 0.9rem;
+  --text-base: 1rem;
+  --text-lg: 1.1rem;
+  --text-2xl: 1.6rem;
+  --text-4xl: 3rem;
+  --font-body: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ---------- radius ---------- */
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-full: 999px;
+  --radius-circle: 50%;
+
+  /* ---------- 그림자 ---------- */
+  --shadow-glow-gold: 0 0 6px 1px var(--glow-gold);
+  --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.35); /* 예약 — 아직 사용처 없음, /styleguide에서 확인 */
+  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.45); /* 예약 */
+
+  /* ---------- 인터랙션 상태 ---------- */
+  --opacity-disabled: 0.35;
+  --focus-ring: 2px solid var(--accent-gold); /* 키보드 포커스 가시성 — 새 인터랙티브 요소는 필수 적용 */
+
+  /* ---------- 모션 ---------- */
+  --duration-fast: 0.15s;
+  --duration-base: 0.25s;
+  --duration-slow: 0.4s;
+  /* 볼 이동 시간은 --duration-fast와 값이 같아도 반드시 별도 토큰을 쓴다:
+     match.js의 이벤트 캐던스(PROGRESSION_DELAY_MS=180ms)보다 길어지면 transition이
+     매번 중간에 끊겨 볼이 계속 뒤처지며 기어간다(실측 교훈, match-view.css 주석 참고).
+     전역 모션 리튠에서 절연하기 위한 분리다. */
+  --duration-ball-travel: 0.15s;
+  --ease-standard: ease;
+  --ease-decelerate: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- z-index 계층 (예약 — 현재 사용 0회, 새 오버레이는 반드시 여기서) ---------- */
+  --z-pitch-overlay: 10;
+  --z-sticky: 100;
+  --z-overlay: 1000;
+  --z-modal: 1010;
+  --z-toast: 1100;
+
+  /* ---------- 보더 쇼트핸드 ---------- */
+  --border-panel: 1px solid var(--border-subtle);
+}

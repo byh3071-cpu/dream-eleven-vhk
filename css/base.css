@@ -1,16 +1,4 @@
-:root {
-  --bg-primary: #0b0e14;
-  --bg-panel: #151a24;
-  --bg-panel-raised: #1c2230;
-  --accent-gold: #f0b429;
-  --accent-gold-bright: #ffd873;
-  --accent-silver: #9ca3af;
-  --text-primary: #f5f5f0;
-  --text-dim: #8b93a7;
-  --border-subtle: #262d3d;
-  --color-danger: #e05d5d;
-  --font-body: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-}
+/* 전역 리셋 + 앱 골격. 토큰(:root)은 css/tokens.css로 분리됨 — 여기엔 선언 금지. */
 
 * {
   box-sizing: border-box;
@@ -40,61 +28,10 @@ a {
   color: inherit;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  padding: 0.4em 0.9em;
-  border-radius: 999px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-panel-raised);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-
-.chip--active {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold-bright);
-}
-
 .screen {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
-  gap: 1rem;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.topbar__title {
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.topbar__right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.link-button {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-family: inherit;
-  padding: 0;
-}
-
-.link-button:hover {
-  color: var(--text-primary);
+  padding: var(--space-16);
+  gap: var(--space-16);
 }

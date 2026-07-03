@@ -1,0 +1,255 @@
+/* 공용 컴포넌트 — 두 화면 이상이 쓰는 클래스는 전부 여기 산다 (소유권 맵: docs/DESIGN.md).
+   화면 전용 스타일을 여기 두지 말고, 공용이 된 순간 여기로 옮긴다. */
+
+/* ---------- 칩 (버튼) ---------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em; /* em 의도적 — 폰트 비례 확장 (DESIGN.md 예외 등록) */
+  padding: 0.4em 0.9em;
+  border-radius: var(--radius-full);
+  border: var(--border-panel);
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.chip--active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold-bright);
+}
+
+/* ---------- 링크형 버튼 ---------- */
+
+.link-button {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  padding: 0;
+}
+
+.link-button:hover {
+  color: var(--text-primary);
+}
+
+/* ---------- 상단바 ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-12) var(--space-16);
+  border-bottom: var(--border-panel);
+}
+
+.topbar__title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+/* ---------- 필드 슬롯 (스쿼드빌더 + 매치뷰 공용) ---------- */
+
+.pitch-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 52px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.pitch-slot--empty .player-badge svg.hex polygon {
+  stroke-dasharray: 4 3;
+}
+
+.pitch-slot__role {
+  position: relative;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.pitch-slot__name {
+  font-size: 10px;
+  color: var(--text-primary);
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pitch-slot--selected .player-badge svg.hex polygon {
+  stroke: var(--accent-gold-bright);
+  stroke-width: 3;
+}
+
+.pitch-slot--static {
+  cursor: default;
+}
+
+/* ---------- 선수 뱃지 (헥스+이름, 카드/필드슬롯 공용 — playerBadge.js) ---------- */
+
+.player-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.player-badge svg.hex {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.player-badge__name {
+  position: relative;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.player-badge--lg {
+  width: 108px;
+  height: 108px;
+}
+
+.player-badge--lg .player-badge__name {
+  line-height: 1.15;
+}
+
+.player-badge--sm {
+  width: 44px;
+  height: 44px;
+}
+
+.player-badge--sm .player-badge__name {
+  line-height: 1.05;
+}
+
+/* ---------- 선수 카드 (verify-cards.html 확정본 그대로) ----------
+   아래 블록의 px/색 리터럴은 사용자 확인 5차례로 확정된 값 — 임의로 재유도하거나
+   전역 토큰으로 치환하지 말 것(토큰 리튠이 카드를 못 건드리게 하는 보존 장치).
+   designLint.test.js가 이 블록만 allowlist로 예외 처리한다. */
+
+.player-card {
+  width: 196px;
+  background: linear-gradient(165deg, var(--bg-panel-raised) 0%, var(--bg-panel) 78%);
+  border: 1px solid var(--border-subtle);
+  clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+  padding: 18px 16px 20px;
+  position: relative;
+  cursor: pointer;
+}
+
+.player-card--assigned {
+  opacity: 0.4;
+}
+
+.player-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.player-card__rating {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+  line-height: 1;
+}
+
+.player-card__pos {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 3px 7px;
+  margin-top: 5px;
+}
+
+.player-card__era {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--bg-primary);
+  background: var(--accent-silver);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+
+.player-card__era--legend {
+  background: var(--accent-gold);
+}
+
+.player-card .player-badge {
+  margin: 4px auto 12px;
+}
+
+.player-card__nickname {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.player-card__meta-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.player-card__meta-row .lead {
+  width: 18px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.player-card__meta-row .lead.flag {
+  border-radius: 1px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.player-card__meta-row .lead.flag img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
