@@ -5,18 +5,22 @@
 // 문제를 "진입 시 정리"로 막고 있는데, 두 화면이 각자 타이머를 들면 그 장치가 이원화되어
 // 서로의 고아 루프를 못 죽인다 — 추출 시 이 변수들을 셸에 남기지 않은 이유.
 //
+// goal 19(2D/3D 듀얼 렌더러) 1단계: 컨트롤러(이벤트/타이머/물리 계산)와 "피치 안에
+// 그리는 것"을 PitchBackend 인터페이스로 분리했다. 백엔드는 타이머/rAF를 절대 소유하지
+// 않고(syncFrame 안에서 그리기만), 프레임 데이터는 전부 % 논리 좌표다. HUD(스코어보드/
+// 커멘터리/컨트롤바)는 2D/3D 무관 DOM이라 셸에 남는다.
+//
 // resolvePlayer 주입: 커리어에는 DB에 없는 필러 선수가 있어서(findCareerPlayer),
 // 커멘터리/뱃지가 db findPlayer를 직접 쓰면 필러 등장 순간 크래시한다.
 
 import { eventCommentary } from '../sim/commentary.js'
 import { possessionTeamOf } from '../sim/event-types.js'
-import { createPlayerBadge } from './components/playerBadge.js'
-import { renderPitchLines } from './components/pitchLines.js'
 import { computeTarget, computeFlexTarget, computeOverrideTarget, springStep, MAX_SUBSTEP } from './steering.js'
 import {
   restState, flightToTokenState, flightToPointState,
   advanceBall, ballPosition, settleBall,
 } from './ballFlight.js'
+import { createDomPitchBackend } from './pitchRenderer.dom.js'
 
 // formations.js 좌표계(y=0 자기골~100 상대골)를 공유 필드의 화면 top%로 바꾼다.
 // 슬롯 배치와 이벤트(공) 위치 계산이 반드시 이 한 함수만 거치게 해서 좌우 팀이
@@ -76,36 +80,12 @@ function penaltySpotOf(team) {
   return { left: 50, top: screenTop(88, team) }
 }
 
-// 이벤트 지점에 뜨는 작은 표현 팝("태클!" 등) — 압박/수비 액션의 표현력(사용자 지적).
-function spawnMiniPop(pitchEl, text, pos) {
-  const pop = document.createElement('div')
-  pop.className = 'match__pop'
-  pop.textContent = text
-  pop.style.left = `${pos.left}%`
-  pop.style.top = `${pos.top}%`
-  pop.addEventListener('animationend', () => pop.remove())
-  pitchEl.appendChild(pop)
-}
-
-// 수비자 런지(태클 순간의 몸짓) — 클래스만 붙이고 애니메이션 종료 시 스스로 뗀다.
-function lunge(refsById, playerId) {
-  const ref = refsById.get(playerId)
-  if (!ref) return
-  ref.el.classList.add('pitch-slot--lunge')
-  ref.el.addEventListener('animationend', () => ref.el.classList.remove('pitch-slot--lunge'), { once: true })
-}
-
-function spawnFlash(pitchEl, text, variant) {
-  const flash = document.createElement('div')
-  flash.className = `match__flash match__flash--${variant}`
-  flash.textContent = text
-  flash.addEventListener('animationend', () => flash.remove())
-  pitchEl.appendChild(flash)
-}
-
-// 재생 타이머/rAF — 모듈 스코프 단일 소유(파일 상단 주석 참고).
+// 재생 타이머/rAF/활성 백엔드 — 모듈 스코프 단일 소유(파일 상단 주석 참고).
+// 백엔드 destroy까지 여기서 담당: 화면 진입부의 clearActivePlayback() 호출이 곧
+// 이전 화면 백엔드의 자원 해제 지점이다(3D WebGL 컨텍스트 누수 방어 — goal 19 3단계).
 let activeTimerId = null
 let activeRafId = null
+let activeBackend = null
 
 function clearActiveTimer() {
   if (activeTimerId !== null) {
@@ -125,46 +105,25 @@ function clearActiveRaf() {
 export function clearActivePlayback() {
   clearActiveTimer()
   clearActiveRaf()
-}
-
-function renderStaticSlot(entry, team, steeringRefs, teamColor) {
-  const el = document.createElement('div')
-  el.className = 'pitch-slot pitch-slot--static'
-  el.dataset.playerId = entry.player.id
-  const basePos = { left: entry.slot.x, top: screenTop(entry.slot.y, team) }
-  el.style.left = `${basePos.left}%`
-  el.style.top = `${basePos.top}%`
-  el.appendChild(createPlayerBadge(entry.player, { size: 'sm', strokeColor: teamColor }))
-  const name = document.createElement('div')
-  name.className = 'pitch-slot__name'
-  name.style.color = teamColor
-  name.textContent = entry.player.shortName ?? entry.player.name
-  el.appendChild(name)
-  steeringRefs.push({
-    el, basePos, team, playerId: entry.player.id,
-    pace: entry.player.stats.pace,
-    dribbling: entry.player.stats.dribbling,
-    isGK: entry.player.positions.includes('GK'),
-    idlePhase: steeringRefs.length * 1.7,
-    current: { ...basePos }, velocity: { left: 0, top: 0 },
-  })
-  return el
+  if (activeBackend !== null) {
+    activeBackend.destroy() // 멱등 — 이중 호출 안전이 백엔드 계약
+    activeBackend = null
+  }
 }
 
 function withSlotPositions(squad11, formation) {
   return squad11.map(({ player, slotIndex }) => ({ player, slot: formation.slots[slotIndex] }))
 }
 
-// 이벤트 로그 재생 컨트롤러 — 사전계산 후 리플레이. 상세 원리 주석은 v1/N1/N2 커밋 이력 참고.
+// 이벤트 로그 재생 컨트롤러 — 사전계산 후 리플레이. 물리/타깃 계산 전부 여기서 하고
+// backend.syncFrame(frame)에 "그릴 것"만 넘긴다(frame은 % 논리 좌표).
 function createPlaybackController(events, refs) {
-  const { ballEl, scoreEl, minuteEl, commentaryEl, onPhaseChange, pitchEl, steeringRefs, tacticsBySide, resolvePlayer } = refs
+  const { backend, scoreEl, minuteEl, commentaryEl, onPhaseChange, steeringRefs, tacticsBySide, resolvePlayer } = refs
   let index = 0
   let speed = 1
   const score = { home: 0, away: 0 }
   let possessionTeam = null
   let lastFrameTime = null
-  let pitchWidth = 0
-  let pitchHeight = 0
 
   let ballState = restState({ left: 50, top: 50 })
   let ballScreenPos = { left: 50, top: 50 }
@@ -183,13 +142,9 @@ function createPlaybackController(events, refs) {
     return ref ? ref.current : null
   }
 
-  function syncBallDebugDataset() {
-    ballEl.dataset.mode = ballState.mode
-    ballEl.dataset.holderId = ballState.mode === 'held' ? ballState.holderId : ''
-    ballEl.dataset.toId = ballState.mode === 'flight' ? ballState.toId : ''
-  }
-
-  function renderBall() {
+  // 그리기 직전 좌표 확정까지가 컨트롤러 책임 — 룰렛 오프셋이 ballScreenPos로
+  // 피드백되어 스티어링 타깃/다음 비행 시작점에 쓰이므로 백엔드로 옮기면 거동이 변한다.
+  function currentBall() {
     let pos = ballPosition(ballState, resolveTokenPos)
     if (pos && activeFlair?.type === 'roulette' && ballState.mode === 'held'
         && ballState.holderId === activeFlair.actorId) {
@@ -197,27 +152,26 @@ function createPlaybackController(events, refs) {
       pos = { left: pos.left + Math.cos(theta) * 1.4, top: pos.top + Math.sin(theta) * 1.4 }
     }
     if (pos) ballScreenPos = pos
-    ballEl.style.left = `${ballScreenPos.left}%`
-    ballEl.style.top = `${ballScreenPos.top}%`
-    // 비행 중 아크: 포물선 느낌의 스케일(뜸->내려앉음) — 평면 이동의 밋밋함 완화.
-    if (ballState.mode === 'flight' || ballState.mode === 'flightToPoint') {
-      const t = Math.min(1, ballState.elapsedMs / ballState.durationMs)
-      const arc = 1 + Math.sin(Math.PI * t) * 0.45
-      ballEl.style.transform = `translate(-50%, -50%) scale(${arc.toFixed(3)})`
-    } else {
-      ballEl.style.transform = 'translate(-50%, -50%)'
+    const inFlight = ballState.mode === 'flight' || ballState.mode === 'flightToPoint'
+    return {
+      pos: { ...ballScreenPos },
+      mode: ballState.mode,
+      holderId: ballState.mode === 'held' ? ballState.holderId : '',
+      toId: ballState.mode === 'flight' ? ballState.toId : '',
+      // 비행 진행률 — 2D는 아크 스케일, 3D는 실제 높이로 해석(백엔드가 결정).
+      flightT: inFlight ? Math.min(1, ballState.elapsedMs / ballState.durationMs) : null,
     }
-    syncBallDebugDataset()
   }
 
-  function applyOffset(ref) {
-    const dxPx = ((ref.current.left - ref.basePos.left) / 100) * pitchWidth
-    const dyPx = ((ref.current.top - ref.basePos.top) / 100) * pitchHeight
-    ref.el.style.transform = `translate(-50%, -50%) translate(${dxPx}px, ${dyPx}px)`
+  function syncFrame() {
+    backend.syncFrame({
+      tokens: steeringRefs,
+      ball: currentBall(),
+    })
   }
 
   function stepFrame(now) {
-    if (!document.contains(pitchEl)) { activeRafId = null; return }
+    if (!backend.isLive()) { activeRafId = null; return }
     const deltaSeconds = lastFrameTime === null ? 0 : Math.min((now - lastFrameTime) / 1000, 0.1)
     lastFrameTime = now
 
@@ -275,34 +229,30 @@ function createPlaybackController(events, refs) {
         ref.current = result.current
         ref.velocity = result.velocity
       }
-      applyOffset(ref)
     }
     ballState = advanceBall(ballState, frameMs)
-    renderBall()
+    syncFrame()
     activeRafId = requestAnimationFrame(stepFrame)
   }
 
   function startSteering() {
     clearActiveRaf()
     lastFrameTime = null
-    pitchWidth = pitchEl.offsetWidth
-    pitchHeight = pitchEl.offsetHeight
+    backend.beginPlayback()
     activeRafId = requestAnimationFrame(stepFrame)
   }
 
   function snapPlayersToTarget() {
-    pitchWidth = pitchEl.offsetWidth
-    pitchHeight = pitchEl.offsetHeight
+    backend.beginPlayback()
     for (const ref of steeringRefs) {
       const override = pullOverrides.get(ref.playerId)
       ref.current = override
         ? computeOverrideTarget(ref.basePos, override)
         : computeTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam)
       ref.velocity = { left: 0, top: 0 }
-      applyOffset(ref)
     }
     ballState = settleBall(ballState)
-    renderBall()
+    syncFrame()
   }
 
   function applyEvent(event, { visualOnly = false } = {}) {
@@ -362,28 +312,31 @@ function createPlaybackController(events, refs) {
       activeFlair = null
     }
 
-    renderBall()
+    syncFrame()
 
     if (event.type === 'turnover_buildup') {
-      lunge(refsById, event.actorId)
+      backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
       const tackleSpecialist = event.cause === 'tackle'
         && resolvePlayer(event.actorId)?.traits?.includes('tackle_specialist')
-      spawnMiniPop(pitchEl, tackleSpecialist ? '⭐ 태클 장인!' : event.cause === 'tackle' ? '태클!' : '인터셉트!', eventPos)
+      backend.applyEventVisual({
+        kind: 'miniPop', pos: eventPos,
+        text: tackleSpecialist ? '⭐ 태클 장인!' : event.cause === 'tackle' ? '태클!' : '인터셉트!',
+      })
     } else if (event.type === 'foul') {
-      lunge(refsById, event.actorId)
-      spawnMiniPop(pitchEl, event.dangerous ? '파울! 위험한 위치' : '파울', eventPos)
+      backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: event.dangerous ? '파울! 위험한 위치' : '파울' })
     } else if (event.type === 'free_kick'
         && resolvePlayer(event.takerId)?.traits?.includes('free_kick_specialist')) {
-      spawnMiniPop(pitchEl, '⭐ 프리킥 장인', eventPos)
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '⭐ 프리킥 장인' })
     } else if ((event.type === 'goal' || event.type === 'shot_saved')
         && (event.via === 'header_corner' || event.via === 'header_fk')
         && resolvePlayer(event.actorId)?.traits?.includes('aerial_threat')) {
-      spawnMiniPop(pitchEl, '⭐ 공중 지배', eventPos)
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '⭐ 공중 지배' })
     } else if (event.type === 'clearance') {
-      lunge(refsById, event.actorId)
-      spawnMiniPop(pitchEl, '걷어냄!', eventPos)
+      backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '걷어냄!' })
     } else if (event.type === 'offside') {
-      spawnMiniPop(pitchEl, '오프사이드', eventPos)
+      backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '오프사이드' })
     }
 
     if (event.type === 'goal') {
@@ -393,13 +346,12 @@ function createPlaybackController(events, refs) {
         scoreEl.textContent = `${score.home} - ${score.away}`
       }
       celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
-      spawnFlash(pitchEl, 'GOAL!', 'goal')
+      backend.applyEventVisual({ kind: 'flash', variant: 'goal', text: 'GOAL!' })
     } else if (event.type === 'yellow_card') {
-      spawnFlash(pitchEl, '', 'yellow')
+      backend.applyEventVisual({ kind: 'flash', variant: 'yellow', text: '' })
     } else if (event.type === 'red_card') {
-      spawnFlash(pitchEl, '', 'red')
-      const ref = refsById.get(event.actorId)
-      if (ref) ref.el.style.opacity = 'var(--opacity-disabled)'
+      backend.applyEventVisual({ kind: 'flash', variant: 'red', text: '' })
+      backend.applyEventVisual({ kind: 'sendOff', playerId: event.actorId })
     }
 
     if (visualOnly) return // 리플레이는 화면 연출만 — 기록(커멘터리 포함)은 본 재생의 몫
@@ -420,13 +372,13 @@ function createPlaybackController(events, refs) {
   const REPLAY_SEGMENT_MAX = 4
 
   function tick() {
-    if (!document.contains(ballEl)) { clearActivePlayback(); return }
+    if (!backend.isLive()) { clearActivePlayback(); return }
     if (replayEnding) { timeScale = 1; replayEnding = false }
 
     // 골 리플레이 구간 — 본 재생을 멈추고 같은 체인을 슬로모로 재적용.
     if (replayIntro) {
       replayIntro = false
-      spawnFlash(pitchEl, 'REPLAY', 'replay')
+      backend.applyEventVisual({ kind: 'flash', variant: 'replay', text: 'REPLAY' })
       const startPos = replayStartPos(replayQueue[0])
       ballScreenPos = { ...startPos }
       ballState = restState(startPos)
@@ -444,7 +396,8 @@ function createPlaybackController(events, refs) {
 
     if (index === 0) pushLine("0' 킥오프! 경기가 시작된다")
     if (index >= events.length) {
-      clearActivePlayback()
+      clearActiveTimer()
+      clearActiveRaf()
       pushLine(`90' 경기 종료 — 최종 스코어 ${score.home} - ${score.away}`)
       onPhaseChange('done')
       return
@@ -472,7 +425,6 @@ function createPlaybackController(events, refs) {
     activeFlair = null
     celebration = null
     possessionTeam = null
-    renderBall()
     minuteEl.textContent = "0'"
     scoreEl.textContent = '0 - 0'
     commentaryEl.replaceChildren()
@@ -481,14 +433,15 @@ function createPlaybackController(events, refs) {
     for (const ref of steeringRefs) {
       ref.current = { ...ref.basePos }
       ref.velocity = { left: 0, top: 0 }
-      ref.el.style.transform = 'translate(-50%, -50%)'
-      ref.el.style.opacity = ''
     }
+    backend.reset()
+    syncFrame()
   }
 
   return {
     start() {
-      clearActivePlayback()
+      clearActiveTimer()
+      clearActiveRaf()
       index = 0
       resetVisuals()
       onPhaseChange('playing')
@@ -496,7 +449,8 @@ function createPlaybackController(events, refs) {
       startSteering()
     },
     pause() {
-      clearActivePlayback()
+      clearActiveTimer()
+      clearActiveRaf()
       onPhaseChange('paused')
     },
     resume() {
@@ -514,7 +468,8 @@ function createPlaybackController(events, refs) {
       replayEnding = false
       timeScale = 1
       pushLine(`90' 경기 종료 — 최종 스코어 ${score.home} - ${score.away}`)
-      clearActivePlayback()
+      clearActiveTimer()
+      clearActiveRaf()
       while (index < events.length) {
         applyEvent(events[index])
         index++
@@ -566,7 +521,7 @@ function renderControls(onKickoff, onTogglePause, onSetSpeed, onSkip) {
   return { bar, kickoffBtn, pauseBtn, speedButtons, skipBtn }
 }
 
-// 재생 뷰 전체 조립 — 스코어보드/피치(22토큰+볼)/커멘터리/컨트롤바.
+// 재생 뷰 전체 조립 — 스코어보드/피치(백엔드)/커멘터리/컨트롤바.
 // onKickoffRequest(): 컨트롤러가 아직 없을 때 킥오프를 누르면 호출 — 셸이 setResult로 응답
 // (IF는 이때 새 시뮬, 커리어는 미리 계산된 고정 시드 결과 전달). onPhase(phase): 'playing'|
 // 'paused'|'done' — 셸이 부가 UI(결과 링크 등)를 제어.
@@ -601,21 +556,30 @@ export function buildPlaybackView({
   center.append(minuteEl, scoreEl)
   scoreboard.append(makeTeamTag('A'), center, makeTeamTag('B'))
 
-  const pitch = document.createElement('div')
-  pitch.className = 'match__pitch'
-  pitch.appendChild(renderPitchLines())
+  // 토큰(선수) 목록 — 백엔드 mount 입력이자 컨트롤러 스티어링 레코드의 원천.
+  // 논리 필드(스티어링)는 컨트롤러가, DOM 요소는 백엔드가 갖는다(경계 원칙).
+  const tokens = []
   const steeringRefs = []
-  for (const entry of withSlotPositions(homeSquad11, homeFormation)) {
-    pitch.appendChild(renderStaticSlot(entry, 'A', steeringRefs, teamColors.A))
+  const pushTeam = (squad11, formation, team) => {
+    for (const entry of withSlotPositions(squad11, formation)) {
+      const basePos = { left: entry.slot.x, top: screenTop(entry.slot.y, team) }
+      tokens.push({ playerId: entry.player.id, player: entry.player, team, basePos })
+      steeringRefs.push({
+        basePos, team, playerId: entry.player.id,
+        pace: entry.player.stats.pace,
+        dribbling: entry.player.stats.dribbling,
+        isGK: entry.player.positions.includes('GK'),
+        idlePhase: steeringRefs.length * 1.7,
+        current: { ...basePos }, velocity: { left: 0, top: 0 },
+      })
+    }
   }
-  for (const entry of withSlotPositions(awaySquad11, awayFormation)) {
-    pitch.appendChild(renderStaticSlot(entry, 'B', steeringRefs, teamColors.B))
-  }
-  const ball = document.createElement('div')
-  ball.className = 'match__ball'
-  ball.style.left = '50%'
-  ball.style.top = '50%'
-  pitch.appendChild(ball)
+  pushTeam(homeSquad11, homeFormation, 'A')
+  pushTeam(awaySquad11, awayFormation, 'B')
+
+  const backend = createDomPitchBackend()
+  backend.mount({ tokens, teamColors })
+  activeBackend = backend
 
   const commentary = document.createElement('div')
   commentary.className = 'match__commentary'
@@ -669,26 +633,18 @@ export function buildPlaybackView({
   // 좁은 화면에선 세로 스택(css/match-view.css 미디어쿼리). 사용자 지적 반영.
   const stage = document.createElement('div')
   stage.className = 'match__stage'
-  stage.append(pitch, commentary)
+  stage.append(backend.root, commentary)
 
-  // 틸트(유사 3D) 토글 — 중계 카메라 원근. 기본 OFF(anti-float 게이트는 평면 기준).
-  const tiltBtn = document.createElement('button')
-  tiltBtn.type = 'button'
-  tiltBtn.className = 'chip'
-  tiltBtn.textContent = '입체 뷰'
-  tiltBtn.addEventListener('click', () => {
-    const on = pitch.classList.toggle('match__pitch--tilt')
-    tiltBtn.classList.toggle('chip--active', on)
-  })
-  ui.bar.appendChild(tiltBtn)
+  // 백엔드 전용 컨트롤(2D의 '입체 뷰' 틸트 등) — 백엔드가 자기 것만 노출.
+  for (const control of backend.extraControls ?? []) ui.bar.appendChild(control)
 
   return {
-    scoreboard, pitch, commentary, stage, controlsBar: ui.bar,
+    scoreboard, pitch: backend.root, commentary, stage, controlsBar: ui.bar,
     // 결과 장착(+즉시 재생 시작). IF 재대결은 새 결과로 다시 호출하면 된다.
     setResult(result) {
       controller = createPlaybackController(result.events, {
-        ballEl: ball, scoreEl, minuteEl, commentaryEl: commentary,
-        onPhaseChange: setPhase, pitchEl: pitch, steeringRefs, tacticsBySide, resolvePlayer,
+        backend, scoreEl, minuteEl, commentaryEl: commentary,
+        onPhaseChange: setPhase, steeringRefs, tacticsBySide, resolvePlayer,
       })
       controller.start()
     },

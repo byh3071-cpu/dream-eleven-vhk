@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 16(N6): 구단 경영/재정 — 주급/관중수입 라운드 정산, 보드 신임도, 게임오버 2종(경질/파산), /career/finance, tune-finance 밸런싱 게이트",
+  "objective": "goal 19-1차: 2D/3D 듀얼 렌더러 — PitchBackend 포트 추출(5단계 독립 커밋), Three.js r185 벤더링, 캡슐 토큰 3D 백엔드, [2D|3D] 전환, verify-anti-float-3d",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-03T08:03:46.621Z"
+  "updatedAt": "2026-07-03T08:12:25.378Z"
 }
