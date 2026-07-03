@@ -5,3 +5,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# 세션 임시 검증 산출물(vhk save 전체 add에 쓸려가는 사고 2회 - 원천 차단)
+.tmp-*
