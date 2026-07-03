@@ -31,6 +31,12 @@
   --color-warning: #e0b45d;
   --color-info: #5d9de0;
 
+  /* ---------- 색: 커리어 가상 구단 4개 (clubs.js가 var() 문자열로 참조) ---------- */
+  --club-aurum: #d4a017; /* 아우룸 FC — 황금 */
+  --club-obsidian: #7d8aa5; /* 옵시디언 SC — 흑요석(다크 배경 위 식별용 은청색) */
+  --club-crimson: #c0455a; /* 크림슨 유나이티드 — 진홍 */
+  --club-glacier: #5aa7c0; /* 글라시에 시티 — 빙하 */
+
   /* ---------- 색: 피치(경기장) ---------- */
   --pitch-grass-light: #16321f;
   --pitch-grass-dark: #0e2015;

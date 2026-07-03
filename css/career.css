@@ -1,0 +1,196 @@
+/* 커리어 모드 화면 전용 — 토큰만 사용(designLint 감시). */
+
+.career__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  max-width: 960px;
+}
+
+.career__nav {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.career__hint {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ---------- 구단 ---------- */
+
+.career__club-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-circle);
+  margin-right: var(--space-6);
+  vertical-align: baseline;
+}
+
+.career__club-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.career__club-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-12);
+}
+
+.career__club-tile {
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
+  padding: var(--space-20) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+}
+
+.career__club-tile-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+
+/* ---------- 홈 카드/우승 배너 ---------- */
+
+.career__next-card {
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+}
+
+.career__next-matchup {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.career__champion {
+  background: linear-gradient(165deg, var(--bg-panel-raised) 0%, var(--bg-panel) 78%);
+  border: 1px solid var(--accent-gold);
+  border-radius: var(--radius-8);
+  padding: var(--space-16);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+}
+
+/* ---------- 순위표 ---------- */
+
+.career__table {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-8);
+  overflow: hidden;
+  max-width: 480px;
+}
+
+.career__table-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr 3rem 3rem 3rem;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  font-variant-numeric: tabular-nums;
+  border-bottom: var(--border-panel);
+}
+
+.career__table-row:last-child {
+  border-bottom: none;
+}
+
+.career__table-row--head {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+}
+
+.career__table-row--mine {
+  background: var(--bg-panel-raised);
+  color: var(--accent-gold-bright);
+}
+
+/* ---------- 일정 ---------- */
+
+.career__round {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.career__round--current .career__round-heading {
+  color: var(--accent-gold-bright);
+}
+
+.career__round-heading {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-top: var(--space-8);
+}
+
+.career__fixture {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-8);
+  align-items: center;
+  padding: var(--space-6) var(--space-12);
+  background: var(--bg-panel);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+}
+
+.career__fixture--mine {
+  border-color: var(--accent-gold);
+}
+
+.career__fixture-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.career__fixture > .career__club-label:last-of-type {
+  justify-self: end;
+}
+
+/* ---------- 선수 상태 칩 (스쿼드 카드 데코레이터) ---------- */
+
+.career__player-chips {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.career__chip {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-full);
+  border: var(--border-panel);
+  color: var(--text-dim);
+}
+
+.career__chip--good { color: var(--color-success); border-color: var(--color-success); }
+.career__chip--warn { color: var(--color-warning); border-color: var(--color-warning); }
+.career__chip--danger { color: var(--color-danger); border-color: var(--color-danger); }

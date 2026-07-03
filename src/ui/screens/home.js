@@ -3,7 +3,7 @@
 // 기능만 꽂기 위함). 세이브가 생기면 라벨이 "이어하기"로 바뀌는 것도 N3에서.
 
 import { navigate } from '../../router.js'
-import { ifSquadPath } from '../../routes.js'
+import { ifSquadPath, careerPath } from '../../routes.js'
 
 function modeTile({ title, description, cta, disabled, onStart }) {
   const tile = document.createElement('div')
@@ -51,9 +51,9 @@ export function renderHome(mountEl) {
     }),
     modeTile({
       title: '커리어',
-      description: '가상 리그에서 구단을 맡아 시즌을 지휘하는 감독 모드.',
-      cta: '준비 중',
-      disabled: true,
+      description: '가상 리그 4구단이 레전드 풀을 드래프트 — 한 시즌을 지휘하는 감독 모드.',
+      cta: '커리어 시작',
+      onStart: () => navigate(careerPath()),
     }),
   )
 

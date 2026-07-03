@@ -9,6 +9,12 @@ export const ROUTE_PATTERNS = Object.freeze({
   ifTactics: '/if/tactics/:side',
   ifMatch: '/if/match',
   ifResult: '/if/result',
+  career: '/career',
+  careerSquad: '/career/squad',
+  careerTactics: '/career/tactics',
+  careerTable: '/career/table',
+  careerSchedule: '/career/schedule',
+  careerMatchday: '/career/matchday',
   styleguide: '/styleguide',
 })
 
@@ -36,7 +42,26 @@ export function styleguidePath() {
   return '/styleguide'
 }
 
-// 커리어 모드(N3)에서 채워질 예약 — 홈 타일이 미리 참조한다.
 export function careerPath() {
   return '/career'
+}
+
+export function careerSquadPath() {
+  return '/career/squad'
+}
+
+export function careerTacticsPath() {
+  return '/career/tactics'
+}
+
+export function careerTablePath() {
+  return '/career/table'
+}
+
+export function careerSchedulePath() {
+  return '/career/schedule'
+}
+
+export function careerMatchdayPath() {
+  return '/career/matchday'
 }

@@ -1,6 +1,7 @@
 import {
   ROUTE_PATTERNS, homePath, ifSquadPath, ifTacticsPath, ifMatchPath, ifResultPath,
-  styleguidePath, careerPath,
+  styleguidePath, careerPath, careerSquadPath, careerTacticsPath, careerTablePath,
+  careerSchedulePath, careerMatchdayPath,
 } from '../src/routes.js'
 import { compileRoute, matchRoute, normalizeHash } from '../src/routeMatcher.js'
 
@@ -15,6 +16,12 @@ describe('routes — 빌더와 패턴의 정합', () => {
       [ifResultPath(), ROUTE_PATTERNS.ifResult],
       [homePath(), ROUTE_PATTERNS.home],
       [styleguidePath(), ROUTE_PATTERNS.styleguide],
+      [careerPath(), ROUTE_PATTERNS.career],
+      [careerSquadPath(), ROUTE_PATTERNS.careerSquad],
+      [careerTacticsPath(), ROUTE_PATTERNS.careerTactics],
+      [careerTablePath(), ROUTE_PATTERNS.careerTable],
+      [careerSchedulePath(), ROUTE_PATTERNS.careerSchedule],
+      [careerMatchdayPath(), ROUTE_PATTERNS.careerMatchday],
     ]
     for (const [path, expectedPattern] of cases) {
       const matched = matchRoute(compiled, normalizeHash('#' + path))
@@ -36,8 +43,9 @@ describe('routes — 빌더와 패턴의 정합', () => {
     }
   })
 
-  test('careerPath는 N3 예약 — 아직 패턴 테이블에 없다', () => {
+  test('커리어 라우트가 N3에서 등록됐다', () => {
     expect(careerPath()).toBe('/career')
-    expect(Object.values(ROUTE_PATTERNS)).not.toContain('/career')
+    expect(Object.values(ROUTE_PATTERNS)).toContain('/career')
+    expect(Object.values(ROUTE_PATTERNS)).toContain('/career/matchday')
   })
 })
