@@ -399,6 +399,9 @@ export function createThreePitchBackend() {
       heading: 0,
       kickT: 0,
       celebrateT: 0,
+      saveT: 0,
+      saveDir: 0,
+      saveBeaten: false,
       prev: null,
     }
 
@@ -578,6 +581,18 @@ export function createThreePitchBackend() {
           if (dtMs > 0) u.kickT *= Math.exp(-dtMs / 130)
         }
 
+        // GK 다이빙 세이브 — 몸을 옆으로 눕히고(rotation.z) 그 방향으로 hop + 팔 뻗기.
+        if (u.saveT > 0.01) {
+          const dir = u.saveDir || 1
+          rig.rotation.z = dir * u.saveT * 1.1
+          rig.position.x += dir * u.saveT * 2.4
+          rig.position.y = u.saveT * 1.2
+          u.armL.rotation.x = -u.saveT * 1.6
+          u.armR.rotation.x = -u.saveT * 1.6
+          if (dtMs > 0) u.saveT *= Math.exp(-dtMs / (u.saveBeaten ? 500 : 260))
+          if (u.saveT < 0.05) { u.saveT = 0; rig.rotation.z = 0 }
+        }
+
         // 골 셀레브레이션 — 점프 + 만세.
         if (u.celebrateT > 0.01) {
           rig.position.y = Math.abs(Math.sin(u.celebrateT * 9)) * 1.4
@@ -669,6 +684,11 @@ export function createThreePitchBackend() {
           crowdWaveT = 1
           crowdWaveHome = rig.userData.team === 'A'
         }
+        return
+      }
+      if (fx.kind === 'save') {
+        const rig = rigById.get(fx.playerId)
+        if (rig) { rig.userData.saveT = 1; rig.userData.saveDir = fx.dir ?? 0; rig.userData.saveBeaten = !!fx.beaten }
         return
       }
       if (fx.kind === 'lunge') {

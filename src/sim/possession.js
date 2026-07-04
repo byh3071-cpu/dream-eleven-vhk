@@ -382,8 +382,36 @@ export function narrateChain(outcome, possessing, narrationRng) {
     return events
   }
 
-  // 오픈플레이 슛.
-  const shotBase = { ...base, actorId: shooter.player.id, ...boxZone, via: 'open_play' }
+  // 오픈플레이 슛 — 서술 계층에서 마무리 종류/거리/접근을 narrationRng로 입힌다.
+  // 판정(outcome)은 이미 확정, 여기 추가는 전부 화면·텍스트용(핀/몬테카를로 무영향).
+  const shooterFinishing = shooter.player.stats.shooting ?? 60
+
+  // 중거리(long_range): narrationRng 확률로 슈터가 박스 대신 밴드3에서 때린다.
+  // zoneFrom/To를 밴드3로 낮춰도 빌드업이 밴드3까지만 갔으므로 밴드 단조 불변식 유지.
+  const longRange = narrationRng() < 0.14 && shooterFinishing >= 78
+  const shotZone = longRange
+    ? { zoneFrom: BANDS[3], zoneTo: BANDS[3], channel }
+    : boxZone
+
+  // 슛 셋업 접근 비트 — 슈터가 한 박자 볼을 몰고 들어간 뒤 슛(순간이동 인상 제거).
+  // holder는 이미 shooter(위 마무리 빌드업에서 보장) → 연속성/슛직전=슈터 불변식 유지.
+  if (!longRange && narrationRng() < 0.55) {
+    events.push({ type: 'carry', ...base, actorId: shooter.player.id, ...shotZone, style: 'approach' })
+  }
+
+  // finishType — 종류. 중거리는 power/long_range, 박스는 placed 중심 + 가끔 발리/감아차기.
+  let finishType
+  if (longRange) {
+    finishType = 'long_range'
+  } else {
+    const r = narrationRng()
+    if (r < 0.10 && shooterFinishing >= 82) finishType = 'curl'
+    else if (r < 0.20) finishType = 'volley'
+    else if (r < 0.34) finishType = 'power'
+    else finishType = 'placed'
+  }
+
+  const shotBase = { ...base, actorId: shooter.player.id, ...shotZone, via: 'open_play', finishType }
   if (outcome.finish === 'goal') {
     events.push({ type: 'goal', ...shotBase, assistId: assister.player.id })
   } else if (outcome.finish === 'shot_saved') {

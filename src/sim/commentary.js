@@ -18,6 +18,18 @@ const GOAL_VIA_LABEL = {
   penalty: ' — 페널티킥',
 }
 
+// 마무리 종류(서술 전용) — via가 open_play일 때만 붙는 색깔.
+const FINISH_LABEL = {
+  long_range: ' — 중거리 대포알!',
+  curl: ' — 환상적인 감아차기!',
+  volley: ' — 발리슛!',
+  power: ' — 강력한 슈팅',
+  placed: '',
+}
+function finishLabel(event) {
+  return event.via === 'open_play' ? (FINISH_LABEL[event.finishType] ?? '') : ''
+}
+
 export function eventCommentary(event, findPlayer) {
   if (NARRATION_TYPES.includes(event.type)) return null
   if (event.type === 'turnover_buildup') return null
@@ -27,7 +39,7 @@ export function eventCommentary(event, findPlayer) {
 
   switch (event.type) {
     case 'goal': {
-      const via = GOAL_VIA_LABEL[event.via] ?? ''
+      const via = (GOAL_VIA_LABEL[event.via] ?? '') + finishLabel(event)
       // possession.js가 슈터/어시스터를 독립 추첨해 자가 어시스트가 나올 수 있다 —
       // 커멘터리에서만 걸러준다(스탯 계산에는 안 쓰임).
       const assist = event.assistId && event.assistId !== event.actorId ? findPlayer(event.assistId) : null
@@ -38,11 +50,11 @@ export function eventCommentary(event, findPlayer) {
     case 'shot_saved': {
       const gk = findPlayer(event.gkId)
       if (event.via === 'penalty') return `${event.minute}' ${team} ${actor.name}의 페널티킥, ${gk.name} 선방!!`
-      return `${event.minute}' ${team} ${actor.name}의 슈팅, ${gk.name} 선방`
+      return `${event.minute}' ${team} ${actor.name}의${finishLabel(event) ? finishLabel(event).replace(' — ', ' ').replace('!', '') : ''} 슈팅, ${gk.name} 선방`
     }
     case 'shot_off_target':
       if (event.via === 'free_kick') return `${event.minute}' ${team} ${actor.name}의 직접 프리킥이 빗나갑니다`
-      return `${event.minute}' ${team} ${actor.name}의 슈팅이 빗나갑니다`
+      return `${event.minute}' ${team} ${actor.name}의${finishLabel(event) ? finishLabel(event).replace(' — ', ' ').replace('!', '') : ''} 슈팅이 빗나갑니다`
     case 'foul':
       if (!event.dangerous) return null // 빌드업 파울은 무음(카드 시 카드 이벤트가 말함)
       return `${event.minute}' ${team} ${actor.name}의 파울 — 위험한 위치에서 프리킥`

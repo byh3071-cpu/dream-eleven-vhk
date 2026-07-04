@@ -25,9 +25,20 @@ export function flightToPointState(fromPos, toPos, durationMs) {
   return { mode: 'flightToPoint', fromPos: { ...fromPos }, toPos: { ...toPos }, elapsedMs: 0, durationMs }
 }
 
+// 감아차기 — 직선이 아니라 제어점을 경유하는 2차 베지어(곡선 슛). bend는 좌우 휨 방향·세기.
+export function flightCurlState(fromPos, toPos, durationMs, bend) {
+  const mid = { left: (fromPos.left + toPos.left) / 2, top: (fromPos.top + toPos.top) / 2 }
+  const dx = toPos.left - fromPos.left
+  const dy = toPos.top - fromPos.top
+  const len = Math.hypot(dx, dy) || 1
+  // 진행 방향의 법선으로 제어점을 밀어 곡선을 만든다.
+  const ctrl = { left: mid.left + (-dy / len) * bend, top: mid.top + (dx / len) * bend }
+  return { mode: 'flightCurl', fromPos: { ...fromPos }, toPos: { ...toPos }, ctrl, elapsedMs: 0, durationMs }
+}
+
 // 시간 전진. 비행이 끝나면 자동으로 held(수신자)/rest(지점)로 전이한다.
 export function advanceBall(state, dtMs) {
-  if (state.mode !== 'flight' && state.mode !== 'flightToPoint') return state
+  if (state.mode !== 'flight' && state.mode !== 'flightToPoint' && state.mode !== 'flightCurl') return state
   const elapsedMs = state.elapsedMs + dtMs
   if (elapsedMs >= state.durationMs) {
     return state.mode === 'flight' ? heldState(state.toId) : restState(state.toPos)
@@ -63,6 +74,14 @@ export function ballPosition(state, resolveTokenPos) {
       const t = easeOut(Math.min(1, state.elapsedMs / state.durationMs))
       return lerp(state.fromPos, state.toPos, t)
     }
+    case 'flightCurl': {
+      const t = easeOut(Math.min(1, state.elapsedMs / state.durationMs))
+      // 2차 베지어: (1-t)²P0 + 2(1-t)t·C + t²P1
+      const u = 1 - t
+      const left = u * u * state.fromPos.left + 2 * u * t * state.ctrl.left + t * t * state.toPos.left
+      const top = u * u * state.fromPos.top + 2 * u * t * state.ctrl.top + t * t * state.toPos.top
+      return { left, top }
+    }
     default:
       return null
   }
@@ -71,6 +90,6 @@ export function ballPosition(state, resolveTokenPos) {
 // 비행을 즉시 완료한 최종 상태 (스킵용 — 보간 없이 결과만).
 export function settleBall(state) {
   if (state.mode === 'flight') return heldState(state.toId)
-  if (state.mode === 'flightToPoint') return restState(state.toPos)
+  if (state.mode === 'flightToPoint' || state.mode === 'flightCurl') return restState(state.toPos)
   return state
 }

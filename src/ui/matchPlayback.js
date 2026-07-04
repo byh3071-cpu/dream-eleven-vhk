@@ -17,7 +17,7 @@ import { eventCommentary } from '../sim/commentary.js'
 import { possessionTeamOf } from '../sim/event-types.js'
 import { computeTarget, computeFlexTarget, computeOverrideTarget, springStep, MAX_SUBSTEP } from './steering.js'
 import {
-  restState, flightToTokenState, flightToPointState,
+  restState, flightToTokenState, flightToPointState, flightCurlState,
   advanceBall, ballPosition, settleBall,
 } from './ballFlight.js'
 import { createDomPitchBackend } from './pitchRenderer.dom.js'
@@ -263,6 +263,29 @@ function createPlaybackController(events, refs) {
     syncFrame()
   }
 
+  // 슛 비행 — finishType별로 곡선(감아차기)·비행시간(중거리는 더 길게)을 다르게.
+  // toTarget이 문자열(gkId)이면 토큰 호밍, 객체({left,top})면 지점.
+  // 슛 채널로 다이빙 방향 결정(LEFT/RIGHT/중앙). 스티어링 refs에서 GK id 조회.
+  function saveDir(event) {
+    return event.channel === 'LEFT' ? -1 : event.channel === 'RIGHT' ? 1 : 0
+  }
+  function goalkeeperIdOf(team) {
+    const gk = steeringRefs.find((r) => r.team === team && r.isGK)
+    return gk ? gk.playerId : null
+  }
+
+  function shotFlight(event, from, toTarget, baseMs, toToken) {
+    const isCurl = event.finishType === 'curl'
+    const isLong = event.finishType === 'long_range'
+    const ms = isLong ? baseMs * 1.4 : baseMs
+    if (toToken) return flightToTokenState(from, toTarget, ms)
+    if (isCurl) {
+      const bend = (event.channel === 'LEFT' ? 1 : event.channel === 'RIGHT' ? -1 : (event.minute % 2 ? 1 : -1)) * 9
+      return flightCurlState(from, toTarget, ms, bend)
+    }
+    return flightToPointState(from, toTarget, ms)
+  }
+
   function applyEvent(event, { visualOnly = false } = {}) {
     possessionTeam = possessionTeamOf(event)
     if (!visualOnly) { minuteEl.textContent = `${event.minute}'`; lastMinute = event.minute }
@@ -286,15 +309,23 @@ function createPlaybackController(events, refs) {
     } else if (event.type === 'penalty_awarded') {
       ballState = flightToPointState(ballScreenPos, penaltySpotOf(event.team === 'A' ? 'B' : 'A'), flightMs)
     } else if (event.type === 'shot_saved') {
-      ballState = flightToTokenState(ballScreenPos, event.gkId, flightMs)
+      ballState = shotFlight(event, ballScreenPos, event.gkId, flightMs, true)
     } else if (event.type === 'goal' || event.type === 'shot_off_target') {
-      ballState = flightToPointState(ballScreenPos, goalMouthOf(event.team), flightMs)
+      ballState = shotFlight(event, ballScreenPos, goalMouthOf(event.team), flightMs, false)
     }
 
-    if (kickerId && (ballState.mode === 'flight' || ballState.mode === 'flightToPoint')) {
+    if (kickerId && (ballState.mode === 'flight' || ballState.mode === 'flightToPoint' || ballState.mode === 'flightCurl')) {
       backend.applyEventVisual({ kind: 'kick', playerId: kickerId })
       // 킥음은 롱패스/슛/세트피스만 — 숏패스까지 울리면 스팸(체감 실측 기준).
       if (event.type !== 'pass' || event.style === 'long') matchSound('kick')
+    }
+
+    // GK 반응 — 선방(볼 쪽 다이빙)/실점(반대편 헛손질). 볼이 어느 채널로 오는지로 방향.
+    if (event.type === 'shot_saved' && event.gkId) {
+      backend.applyEventVisual({ kind: 'save', playerId: event.gkId, dir: saveDir(event) })
+    } else if (event.type === 'goal') {
+      const conceding = goalkeeperIdOf(event.team === 'A' ? 'B' : 'A')
+      if (conceding) backend.applyEventVisual({ kind: 'save', playerId: conceding, dir: saveDir(event), beaten: true })
     }
 
     pullOverrides.clear()
@@ -303,6 +334,13 @@ function createPlaybackController(events, refs) {
       : eventPosition(event)
     const puller = pullActorOf(event)
     if (puller) pullOverrides.set(puller, eventPos)
+    // 슛류 — GK를 볼 도착점(골문/세이브 지점) 쪽으로 살짝 당겨 반응하게(제자리 정지 해소).
+    if (event.type === 'goal' || event.type === 'shot_off_target' || event.type === 'shot_saved') {
+      const concedeTeam = event.type === 'shot_saved' ? null : (event.team === 'A' ? 'B' : 'A')
+      const gkTeam = event.type === 'shot_saved' ? (event.team === 'A' ? 'B' : 'A') : concedeTeam
+      const gkId = goalkeeperIdOf(gkTeam)
+      if (gkId) pullOverrides.set(gkId, goalMouthOf(event.team))
+    }
 
     const defendingTeam = possessionTeam === 'A' ? 'B' : 'A'
     const pressing = tacticsBySide?.[defendingTeam]?.pressing ?? 0.5

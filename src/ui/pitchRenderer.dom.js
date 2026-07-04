@@ -98,7 +98,8 @@ export function createDomPitchBackend() {
         spawnMiniPop(root, fx)
       } else if (fx.kind === 'flash') {
         spawnFlash(root, fx)
-      } else if (fx.kind === 'lunge') {
+      } else if (fx.kind === 'lunge' || fx.kind === 'save') {
+        // 2D는 GK 다이빙을 lunge 몸짓으로 재사용(3D만 방향성 다이빙).
         const el = elById.get(fx.playerId)
         if (!el) return
         el.classList.add('pitch-slot--lunge')

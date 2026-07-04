@@ -10,6 +10,8 @@
 //   clearance        actorId(수비자) — 크로스/세트피스를 걷어내 체인 종료
 //   offside          actorId(깃발에 걸린 침투자), fromId(패서) — 체인 종료
 //   shot_off_target / shot_saved(gkId) / goal(assistId) — via 필드로 경로 구분
+//     finishType(옵션, 서술 전용): 'placed'|'power'|'long_range'|'curl'|'volley'|'header'
+//       — 판정 무관, narrateChain이 narrationRng로 부여. 렌더/커멘터리만 소비.
 //   free_kick        takerId, variant('direct'|'cross'|'restart') — 데드볼 재개
 //   corner_kick      takerId, side('LEFT'|'RIGHT') — 데드볼 재개
 //   foul             actorId(파울러, team=반칙팀), victimId, dangerous(bool)
