@@ -1,7 +1,7 @@
 // IF 매치 관전 셸 — 스쿼드 빌더/감독 지침 상태를 읽어 simulateMatch를 돌리고,
 // 재생은 공용 계층(matchPlayback.js)에 위임한다. 커리어 매치데이와 재생 코드를 공유.
 
-import { getSquadState } from './squadBuilder.js'
+import { getSquadState, randomFillBothSquads } from './squadBuilder.js'
 import { getTacticsState } from './tactics.js'
 import { findPlayer } from '../../data/players.db.js'
 import { simulateMatch } from '../../sim/engine.js'
@@ -46,8 +46,20 @@ function renderGuard(mountEl, problems) {
   const guard = document.createElement('div')
   guard.className = 'match__guard'
   const heading = document.createElement('p')
-  heading.textContent = '아직 킥오프할 수 없어. 아래부터 먼저 채워줘:'
+  heading.textContent = '아직 킥오프할 수 없어. 직접 채우거나, 랜덤 편성으로 바로 볼 수 있어:'
   guard.appendChild(heading)
+
+  // 랜덤 자동 편성 — 22명 채우기 귀찮을 때 한 번에(양팀 상호배제 유지).
+  const randomBtn = document.createElement('button')
+  randomBtn.type = 'button'
+  randomBtn.className = 'chip chip--active match__random-fill'
+  randomBtn.textContent = '🎲 랜덤 편성으로 바로 관전'
+  randomBtn.addEventListener('click', () => {
+    randomFillBothSquads()
+    mountEl.replaceChildren()
+    renderMatch(mountEl) // 이제 스쿼드가 찼으니 관전 화면으로 진입
+  })
+  guard.appendChild(randomBtn)
 
   for (const { side, message } of problems) {
     const row = document.createElement('div')

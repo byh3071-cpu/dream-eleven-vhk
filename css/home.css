@@ -57,3 +57,10 @@
   margin: 0;
   flex: 1;
 }
+
+.home__tile-actions {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  margin-top: auto;
+}

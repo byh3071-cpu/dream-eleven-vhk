@@ -3,9 +3,10 @@
 // 기능만 꽂기 위함). 세이브가 생기면 라벨이 "이어하기"로 바뀌는 것도 N3에서.
 
 import { navigate } from '../../router.js'
-import { ifSquadPath, careerPath } from '../../routes.js'
+import { ifSquadPath, ifMatchPath, careerPath } from '../../routes.js'
+import { randomFillBothSquads } from './squadBuilder.js'
 
-function modeTile({ title, description, cta, disabled, onStart }) {
+function modeTile({ title, description, cta, disabled, onStart, secondary }) {
   const tile = document.createElement('div')
   tile.className = 'home__tile' + (disabled ? ' home__tile--disabled' : '')
 
@@ -24,7 +25,19 @@ function modeTile({ title, description, cta, disabled, onStart }) {
   button.disabled = Boolean(disabled)
   if (!disabled) button.addEventListener('click', onStart)
 
-  tile.append(heading, desc, button)
+  const actions = document.createElement('div')
+  actions.className = 'home__tile-actions'
+  actions.appendChild(button)
+  if (secondary && !disabled) {
+    const secBtn = document.createElement('button')
+    secBtn.type = 'button'
+    secBtn.className = 'chip'
+    secBtn.textContent = secondary.cta
+    secBtn.addEventListener('click', secondary.onStart)
+    actions.appendChild(secBtn)
+  }
+
+  tile.append(heading, desc, actions)
   return tile
 }
 
@@ -48,6 +61,10 @@ export function renderHome(mountEl) {
       description: '"펠레와 마라도나가 한 팀이라면?" — 양 팀을 직접 짜서 붙이는 드림매치 단판 시뮬레이션.',
       cta: '새 경기 시작',
       onStart: () => navigate(ifSquadPath('home')),
+      secondary: {
+        cta: '🎲 랜덤으로 바로 시작',
+        onStart: () => { randomFillBothSquads(); navigate(ifMatchPath()) },
+      },
     }),
     modeTile({
       title: '커리어',

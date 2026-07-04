@@ -27,6 +27,43 @@ export function getSquadState(side) {
   return { formation, ...squadFlags(sideState, formation, findPlayer) }
 }
 
+// 랜덤 자동 편성 — 양팀을 상호배제 유지하며 포지션별로 채운다(IF는 휘발이라 결정론 불필요).
+// "22명 채우기 귀찮다"는 사용자 요구: 빈 스쿼드에서 바로 관전하게 하는 편의 기능.
+function shuffled(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// 한 팀을 랜덤으로 채운다 — 슬롯 role에 맞는 선수 우선, 부족하면 부/인접 포지션 폴백.
+function fillSide(side, excludeIds) {
+  const sideState = state[side]
+  sideState.assignments = []
+  const formation = findFormation(sideState.formationId)
+  const used = new Set(excludeIds)
+  const pool = shuffled(PLAYERS.filter((p) => !used.has(p.id)))
+  formation.slots.forEach((slot, slotIndex) => {
+    // 1순위 주포지션 일치, 2순위 포지션 목록 포함, 3순위 아무나(리스트 소진 방지).
+    let pick = pool.find((p) => !used.has(p.id) && p.positions[0] === slot.role)
+      ?? pool.find((p) => !used.has(p.id) && p.positions.includes(slot.role))
+      ?? pool.find((p) => !used.has(p.id))
+    if (pick) {
+      assignPlayer(sideState, slotIndex, pick.id)
+      used.add(pick.id)
+    }
+  })
+  return sideState.assignments.map((a) => a.playerId)
+}
+
+// 홈 먼저 채우고, 원정은 홈이 쓴 선수를 제외한 풀에서(상호배제). 실패 없이 22명 보장.
+export function randomFillBothSquads() {
+  const homeIds = fillSide('home', [])
+  fillSide('away', homeIds)
+}
+
 function renderStrength(sideState, formation) {
   const wrap = document.createElement('div')
   wrap.className = 'squad-builder__strength'
