@@ -106,3 +106,35 @@ tokens.css 밖에 못 산다 — designLint가 JS hex를 계속 감시).
 가져와 이 파일에만 추가한다(화면 코드에 raw SVG 금지). 전부 currentColor라 색은 토큰을
 상속하고, 파싱은 DOMParser(innerHTML 싱크 금지 — 보안 훅 규칙). UI 크롬은 아이콘,
 커멘터리 같은 서술 텍스트는 이모지 허용(문장 안에서는 이모지가 자연스럽다).
+
+## 렌더 추상화 — 캐릭터 교체 대비 (Epic 1 · 비주얼 트랙 선행 설계)
+
+3D 백엔드 내부 캐릭터를 3경계 뒤에 둔다 — 나중에 절차적→glTF/Synty/AI 교체가 "부품 갈이"가
+되게(게임 로직·시뮬은 무영향):
+1. **CharacterFactory** `createCharacter(team, spec)`/`destroy()` — 절차적/glTF 구현 교체점.
+2. **모션 파라미터** — syncFrame은 "의도"(locomotion/speed/kick/celebrate/save/dribble/receive)만
+   계산. 표현(뼈 회전 vs 애니 클립)은 캐릭터 구현이 책임.
+3. **앵커** — 캐릭터가 footPos(볼 붙는 지점)/headTop(라벨) 노출 → 교체 시 앵커만 재설정하면
+   볼-선수 앵커링(anti-float 자랑거리) 유지.
+현재 makeHumanoid(pitchRenderer.three.js)가 통짜라, 캐릭터 교체(goal 26/Epic 4) 착수 시 이
+경계로 먼저 리팩터한 뒤 새 구현을 얹는다.
+
+## 지속 세계 데이터 원칙 — 재작성 방지 (Epic 1)
+
+완전 공유 세계(다국가 다부 리그 + 크로스모드 지속성)로 확장할 때 나중에 갈아엎지 않기 위한
+불변 규약. 핵심 통찰(advisor): 버전 스탬프/가드 필드는 "파생 수식이 처음 분기하는 순간"에만
+load-bearing이고 그 분기를 우리가 author하므로, 필드를 미리 심지 말고 **분기와 같은 커밋에** 심는다
+(미리 심으면 그 자체가 재마이그레이션 리스크).
+- **원칙 1 (동커밋 가드)**: 파생 수식(developPlayer/generateYouth 등)을 분기하거나 stateful
+  producer(경기로 키운 아바타 등)를 추가할 때, 반드시 같은 커밋에 가드 필드(genVersion / player.
+  stateful 플래그)를 추가한다.
+- **원칙 2 (영구 ID 네임스페이스)**: 앞으로 생성되는 선수 id는 접두(youth_/filler_/gen_/me_) +
+  세이브 상주 nextPlayerId 단조 카운터. 기존 youth_s{season}_{index}와 충돌 안 하므로 첫 생성기가
+  카운터를 도입할 때 심는다.
+- **원칙 3 (deriveSeed 튜플 체이닝)**: nations×leagues×clubs 확장 시 additive salt는 범위 충돌 →
+  deriveSeed(deriveSeed(master, nation), league)… 튜플 체이닝. 기존 세이브 재현을 깨뜨리므로
+  genVersion 가드 하에서만 새 세계에 적용(기존 세계는 구 salt 유지).
+- **블로킹 테스트**: 어떤 스키마 bump든 **실제 기존 세이브 픽스처 왕복 + 알려진 경기의 파생
+  score/stats byte-identical**을 증명해야 착지(genVersion이 과거를 동결한 증거).
+- **이미 있는 자산**: 세계 시뮬은 이미 전 구단(store/finance/transfers/retirement), 파생 시간흐름
+  (development), youthPlayers 저장 예외 — 완전 공유 세계는 재작성이 아니라 **확장**으로 도달.
