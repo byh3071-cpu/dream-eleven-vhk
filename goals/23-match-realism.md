@@ -101,3 +101,14 @@ Phase C·D·E 전부 DONE. 8개 진단 항목: 수신자 마중(C1)·킥 강도(
 - **공 크기**: 3D BALL_R 1.15→0.78, 2D 10→8px(실제 축구공 비율).
 - **jitter 게이트 상설화**: scripts/verify-jitter.mjs(랜덤 3경기 미세 진동 반전 <7.5) —
   모션 레이어 회귀 즉시 포착(docs/DESIGN.md 등재). anti-float 2D/3D·테스트 299 유지.
+
+## Phase G (DONE) — 볼 흐름 하이브리드 연속화 (Epic 0)
+사용자 재보고: "0.5배속에도 뚝뚝 끊기는 연계". 볼 속도 측정으로 sawtooth 확정(flight
+easeOut 도착→속도 0→held 정지→다음 급출발). 근본 해결:
+- **A1**: ballFlight에 이징 옵션(easeFor) — 연속되는 패스는 'linear'(등속)로 도착 속도가
+  0으로 죽지 않아 다음 패스와 속도 연속. 슛/롱킥만 'out'(파워 감속, advisor: 굴러가는 공
+  물리 유지). FLIGHT_RATIO 0.88→0.98(held dwell 최소화 = 정지 구간 제거).
+- **A2**: carry(드리블)를 볼이 delay 내내 홀더에게 호밍(linear)으로 — 이전엔 160ms만 이동
+  후 660ms held 정지라 볼이 자주 멈춰 보였다(측정 held 정지 43~59%→29~30% 개선).
+- **결과(측정)**: 정지→급출발(sawtooth) 4회 → 0~2회. 순수 렌더라 결정론/핀/몬테카를로
+  무관, anti-float 2D/3D·jitter·테스트 299 재통과.

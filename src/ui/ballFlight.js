@@ -17,12 +17,12 @@ export function heldState(holderId) {
   return { mode: 'held', holderId }
 }
 
-export function flightToTokenState(fromPos, toId, durationMs) {
-  return { mode: 'flight', fromPos: { ...fromPos }, toId, elapsedMs: 0, durationMs }
+export function flightToTokenState(fromPos, toId, durationMs, ease = 'out') {
+  return { mode: 'flight', fromPos: { ...fromPos }, toId, elapsedMs: 0, durationMs, ease }
 }
 
-export function flightToPointState(fromPos, toPos, durationMs) {
-  return { mode: 'flightToPoint', fromPos: { ...fromPos }, toPos: { ...toPos }, elapsedMs: 0, durationMs }
+export function flightToPointState(fromPos, toPos, durationMs, ease = 'out') {
+  return { mode: 'flightToPoint', fromPos: { ...fromPos }, toPos: { ...toPos }, elapsedMs: 0, durationMs, ease }
 }
 
 // 감아차기 — 직선이 아니라 제어점을 경유하는 2차 베지어(곡선 슛). bend는 좌우 휨 방향·세기.
@@ -46,9 +46,16 @@ export function advanceBall(state, dtMs) {
   return { ...state, elapsedMs }
 }
 
-// 감속 이징 — 패스가 도착 직전에 살짝 죽는 느낌.
+// 감속 이징 — 파워샷/슛이 도착 직전에 살짝 죽는 느낌.
 function easeOut(t) {
   return 1 - (1 - t) * (1 - t)
+}
+
+// 비행 이징 선택. 연속되는 패스/드리블은 'linear'(등속) — 도착 속도가 0으로 죽지 않아
+// 다음 패스와 속도가 이어지고 "뚝뚝 끊김"(sawtooth)이 사라진다. 슛/롱킥만 'out'으로
+// 파워감 있는 도착 감속(advisor: 굴러가는 공 물리는 easeOut, 근데 경계 정지는 제거).
+function easeFor(state, t) {
+  return state.ease === 'linear' ? t : easeOut(t)
 }
 
 function lerp(a, b, t) {
@@ -67,11 +74,11 @@ export function ballPosition(state, resolveTokenPos) {
     case 'flight': {
       const target = resolveTokenPos(state.toId)
       if (!target) return null
-      const t = easeOut(Math.min(1, state.elapsedMs / state.durationMs))
+      const t = easeFor(state, Math.min(1, state.elapsedMs / state.durationMs))
       return lerp(state.fromPos, target, t)
     }
     case 'flightToPoint': {
-      const t = easeOut(Math.min(1, state.elapsedMs / state.durationMs))
+      const t = easeFor(state, Math.min(1, state.elapsedMs / state.durationMs))
       return lerp(state.fromPos, state.toPos, t)
     }
     case 'flightCurl': {

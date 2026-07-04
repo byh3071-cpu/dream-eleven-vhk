@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 23 Phase C: 3D 모션 디테일 — 수신자 마중/킥 강도/GK 선방 강화(死코드 수정)/드리블·리액션",
+  "objective": "Epic 0 goal 23-A: 볼 흐름 하이브리드 연속화 — 뚝뚝 끊김(sawtooth) 근본 해결",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-04T06:24:36.233Z"
+  "updatedAt": "2026-07-04T14:32:08.382Z"
 }

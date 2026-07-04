@@ -56,7 +56,7 @@ const DELAY_MS = {
   yellow_card: 1050, red_card: 1300, penalty_awarded: 1300,
 }
 const SHORT_PASS_DELAY_MS = 340
-const FLIGHT_RATIO = 0.88
+const FLIGHT_RATIO = 0.98
 const CARRY_TRANSFER_MS = 160
 
 function delayFor(event) {
@@ -411,8 +411,12 @@ function createPlaybackController(events, refs) {
 
     const flightMs = delayFor(event) * FLIGHT_RATIO
     if (event.type === 'pass') {
-      ballState = flightToTokenState(ballScreenPos, event.toId, flightMs)
-    } else if (event.type === 'carry' || event.type === 'turnover_buildup'
+      ballState = flightToTokenState(ballScreenPos, event.toId, flightMs, 'linear')
+    } else if (event.type === 'carry') {
+      // 드리블 — 볼이 delay 내내 홀더에게 호밍(홀더가 몰고 전진하는 것 따라 흐름). 이전엔
+      // 160ms만 이동 후 660ms held 정지라 볼이 자주 멈춰 보였다(측정: held 정지 43~59%).
+      ballState = flightToTokenState(ballScreenPos, event.actorId, flightMs, 'linear')
+    } else if (event.type === 'turnover_buildup'
         || event.type === 'clearance' || event.type === 'offside') {
       ballState = flightToTokenState(ballScreenPos, event.actorId, CARRY_TRANSFER_MS)
     } else if (event.type === 'foul') {
