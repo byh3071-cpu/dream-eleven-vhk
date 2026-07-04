@@ -3,7 +3,7 @@ vhk_format: 1
 type: goal
 id: 23
 title: 매치 리얼리즘 & 3D 모션 대개편 (v3 goal 23)
-status: IN_PROGRESS
+status: DONE
 priority: P1
 ---
 
@@ -76,5 +76,8 @@ priority: P1
   (프레임 비교 — 정지↓/겹침↓/마중○).
 - Phase E: 서술·렌더 계층 유지 → 핀/몬테카를로/리얼리즘 무수정 통과가 판정 무오염 증거.
 
-## Completion Check
-Phase C·D·E 전부 DONE + 최종 3D 관전 재검증(8개 진단 항목 개선) + 게이트 전부 그린.
+## Completion Check (DONE)
+Phase C·D·E 전부 DONE. 8개 진단 항목: 수신자 마중(C1)·킥 강도(C2)·GK 선방(C3)·
+드리블/리액션(C4)·오프볼 정지(D1)·겹침(D2)·압박/침투(D3)·세트피스 쇄도(E1)·중거리(E2) —
+각 Phase 관전 실측으로 개선 확인(겹침 해소·박스 쇄도·압박 협응). 테스트 299, anti-float
+2D/3D 전부 그린. 서술 계층 변경(finishType 등)은 핀/몬테카를로 무수정 통과로 판정 무오염 증명.
