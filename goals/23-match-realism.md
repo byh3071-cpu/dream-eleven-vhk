@@ -48,11 +48,16 @@ priority: P1
   즉시 종료(held gap 방지 — anti-float 첫 실패 후 추가).
 - **C4 (MED)** 드리블 잔발(케이던스 가속) + 고개 리액션(head userData 노출 후 볼 방향 lerp).
 
-## Phase D — 동선 유연화 (steering.js + matchPlayback)
+## Phase D (DONE) — 동선 유연화 (steering.js + matchPlayback)
 진단: 오프볼 16명 정지(라인 시프트 없음), 양팀 대칭 포지션 겹침, 압박 1명·침투 없음.
-- **D1 (HIGH)** 오프볼 라인 시프트: 팀 전체가 볼 위치 따라 유닛으로 밀고 당기기.
-- **D2 (HIGH)** 선수 충돌 회피(separation): 근접 두 토큰 상호 밀어냄(겹침 해소).
-- **D3 (LOW)** 압박 2인(둘째 커버 각) + 침투 러너(배후 대각).
+- **D1 (HIGH)** 오프볼 라인 시프트: computeTarget에 볼 중앙 이탈 비례 평행이동 항(전원 같은
+  벡터 — 대형 보존, pull과 별개). 정찰 지침대로 캡 상향 대신 시프트 항(겹침 악화 회피).
+- **D2 (HIGH)** 충돌 회피(separation): 프레임 루프 후처리 231쌍, 근접 시 상호 밀어냄
+  (SEP_MIN 4.4%). syncFrame 이전이라 held 볼이 홀더에 재부착(anti-float 안전). 홀더·셀레머니
+  군집 제외. 관전 실측: "사비+램파드"·"반니+드사이" 겹침 → 전원 개별 판독 가능으로 해소.
+- **D3 (LOW)** 압박 상시 2인(고압박 3인) — 첫째 볼 직행/둘째·셋째 커버 각(볼-자기골 사이
+  +측면 오프셋으로 스택 방지). 침투 러너 — 최전방 비홀더 1명이 볼 반대 채널로 배후 대각 런.
+- anti-float 2D/3D·테스트 299 통과(steering.test 라인시프트 반영 갱신).
 
 ## Phase E — 세트피스 + 슛 위치 (matchPlayback + setpieces + possession)
 진단: 코너/FK인데 박스 쇄도 없음, 중거리 슛인데 볼이 골문 앞에서 시작.

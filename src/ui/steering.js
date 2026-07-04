@@ -16,6 +16,14 @@ const DEFENSE_PULL_FRACTION = 0.12
 const DEFENSE_MAX_PULL = 5
 const ATTACK_PUSH = 3 // 퍼센트 포인트, 볼 소유 시 상대 골 쪽 전진
 const DEFENSE_DROP = 2 // 퍼센트 포인트, 볼 미소유 시 자기 골 쪽 후퇴
+// 팀 라인 시프트 — 볼 중앙 이탈에 비례해 전원 같은 벡터로 평행이동(대형 보존, pull과 별개).
+const LINE_SHIFT_X = 0.14
+const LINE_SHIFT_Y = 0.11
+const LINE_SHIFT_MAX = 12
+
+function clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v
+}
 
 // team 'A'는 top=0 방향(위)이 공격 방향, 'B'는 top=100 방향(아래)이 공격 방향
 // (match.js screenTop 규약과 동일 — 여기선 부호만 필요해서 다시 정의하지 않고 받는다).
@@ -32,9 +40,13 @@ export function computeTarget(basePos, ballPos, team, hasPossession) {
   const pull = dist === 0 ? 0 : Math.min(dist * pullFraction, maxPull)
   const ratio = dist === 0 ? 0 : pull / dist
   const shapeShift = (hasPossession ? ATTACK_PUSH : -DEFENSE_DROP) * attackDir(team)
+  // 팀 라인 시프트 — 볼이 중앙에서 벗어난 만큼 전원이 같은 벡터로 밀린다(대형 안 무너짐).
+  // "라인이 볼 따라 밀고 당기는" 오프볼 생동감 — 개별 pull(볼로 붕괴)과 달리 유닛 이동.
+  const shiftX = clamp((ballPos.left - 50) * LINE_SHIFT_X, -LINE_SHIFT_MAX, LINE_SHIFT_MAX)
+  const shiftY = clamp((ballPos.top - 50) * LINE_SHIFT_Y, -LINE_SHIFT_MAX, LINE_SHIFT_MAX)
   return {
-    left: basePos.left + dx * ratio,
-    top: basePos.top + dy * ratio + shapeShift,
+    left: basePos.left + dx * ratio + shiftX,
+    top: basePos.top + dy * ratio + shapeShift + shiftY,
   }
 }
 
@@ -47,6 +59,8 @@ export function computeTarget(basePos, ballPos, team, hasPossession) {
 const SUPPORT_PULL = 5
 const SUPPORT_FORWARD = 4
 const OVERLAP_FORWARD = 9
+const PENETRATE_FORWARD = 15 // 배후 침투 전진 폭(지원런보다 크게 — 라인 넘기)
+const PENETRATE_WIDE = 7
 
 export function computeFlexTarget(basePos, ballPos, team, hasPossession, flex = {}) {
   const target = computeTarget(basePos, ballPos, team, hasPossession)
@@ -61,6 +75,13 @@ export function computeFlexTarget(basePos, ballPos, team, hasPossession, flex = 
   }
   if (flex.overlap) {
     target.top += dir * OVERLAP_FORWARD
+  }
+  // 침투 — 볼 반대 채널의 빈 공간으로 대각 전진(수비 배후 노림). 캡은 지원런보다만 크게
+  // 둬 대형은 유지(anti-float held 게이트가 안전망 — 침투자는 오프볼이라 무관).
+  if (flex.penetrate) {
+    const awayFromBall = ballPos.left < 50 ? 1 : -1
+    target.left += awayFromBall * PENETRATE_WIDE
+    target.top += dir * PENETRATE_FORWARD
   }
   return target
 }

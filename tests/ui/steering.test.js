@@ -21,16 +21,17 @@ describe('computeTarget', () => {
     expect(attackPull).toBeGreaterThan(defendPull)
   })
 
-  test('먼 공은 포제션별 절대 상한에서 각각 클램프됨', () => {
+  test('먼 공은 포제션별 절대 상한에서 각각 클램프됨(+ 팀 라인 시프트)', () => {
     const base = { left: 50, top: 50 }
-    const ball = { left: 150, top: 50 } // left축은 shapeShift 영향이 없어 순수 pull만 비교 가능
+    const ball = { left: 150, top: 50 } // 먼 공 — pull은 상한 클램프, 라인 시프트도 최대 클램프
     const attacking = computeTarget(base, ball, 'A', true)
     const defending = computeTarget(base, ball, 'A', false)
     const attackPull = attacking.left - base.left
     const defendPull = defending.left - base.left
-    expect(attackPull).toBeCloseTo(8, 5) // POSSESSION_MAX_PULL
-    expect(defendPull).toBeCloseTo(5, 5) // DEFENSE_MAX_PULL
-    expect(attackPull).toBeGreaterThan(defendPull)
+    // 라인 시프트(LINE_SHIFT_MAX=12)는 team/possession 무관 공통이라 pull 상한 차이는 보존된다.
+    expect(attackPull).toBeCloseTo(20, 5) // POSSESSION_MAX_PULL(8) + LINE_SHIFT_MAX(12)
+    expect(defendPull).toBeCloseTo(17, 5) // DEFENSE_MAX_PULL(5) + LINE_SHIFT_MAX(12)
+    expect(attackPull - defendPull).toBeCloseTo(3, 5) // pull 상한 차이(8-5)는 그대로
   })
 
   test('A팀은 볼 소유 시 top 감소 방향(상대 골)으로 전진 편향', () => {

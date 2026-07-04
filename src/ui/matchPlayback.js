@@ -168,6 +168,36 @@ function createPlaybackController(events, refs) {
     }
   }
 
+  const SEP_MIN = 4.4 // % — 이보다 가까우면 서로 밀어냄
+  const SEP_PUSH = 0.5
+
+  function separatePlayers() {
+    const holderId = ballState.mode === 'held' ? ballState.holderId : null
+    const inCelebration = celebration !== null
+    for (let i = 0; i < steeringRefs.length; i++) {
+      const a = steeringRefs[i]
+      if (a.playerId === holderId) continue
+      if (inCelebration && a.team === celebration.team) continue
+      for (let j = i + 1; j < steeringRefs.length; j++) {
+        const b = steeringRefs[j]
+        if (b.playerId === holderId) continue
+        if (inCelebration && b.team === celebration.team) continue
+        const dx = b.current.left - a.current.left
+        const dy = b.current.top - a.current.top
+        const d = Math.hypot(dx, dy)
+        if (d < SEP_MIN && d > 0.001) {
+          const push = (SEP_MIN - d) * SEP_PUSH
+          const nx = dx / d
+          const ny = dy / d
+          a.current.left -= nx * push
+          a.current.top -= ny * push
+          b.current.left += nx * push
+          b.current.top += ny * push
+        }
+      }
+    }
+  }
+
   function syncFrame(dtMs = 0) {
     backend.syncFrame({
       tokens: steeringRefs,
@@ -204,6 +234,12 @@ function createPlaybackController(events, refs) {
       .sort((a, b) => a.d - b.d)
       .slice(0, 2)
       .map((x) => x.id)
+    // 침투 러너 — 소유 팀에서 가장 전진한 비홀더 1명이 수비 배후로 대각 런(빈 공간 노림).
+    // 지원런(볼 쪽 붙기)과 달리 볼 반대 채널로 벌리며 앞으로 — 정적 대형에 종적 위협을 만든다.
+    const penetratorId = possessionTeam === null ? null : steeringRefs
+      .filter((r) => r.team === possessionTeam && !r.isGK && r.playerId !== holderId && !supportIds.includes(r.playerId))
+      .map((r) => ({ id: r.playerId, adv: possessionTeam === 'A' ? -r.basePos.top : r.basePos.top }))
+      .sort((a, b) => b.adv - a.adv)[0]?.id ?? null
 
     for (const ref of steeringRefs) {
       let target
@@ -215,6 +251,7 @@ function createPlaybackController(events, refs) {
           ? computeOverrideTarget(ref.basePos, override)
           : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
             supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
+            penetrate: ref.playerId === penetratorId,
             overlap: ref.team === possessionTeam && !ref.isGK
               && (ref.team === 'A' ? ref.basePos.top > 66 : ref.basePos.top < 34)
               && (ref.basePos.left < 32 || ref.basePos.left > 68)
@@ -238,6 +275,11 @@ function createPlaybackController(events, refs) {
         ref.velocity = result.velocity
       }
     }
+
+    // 충돌 회피(separation) — 근접 두 토큰을 최소거리로 밀어낸다(양팀 겹침·라벨 포갬 해소).
+    // syncFrame 이전이라 홀더를 밀어도 볼이 다시 붙는다(anti-float held 불변식 안전). 홀더는
+    // 볼 지터 방지로, 셀레머니 군집은 의도된 몰림이라 제외. 231쌍/프레임은 성능 무시 가능.
+    separatePlayers()
     ballState = advanceBall(ballState, frameMs)
     syncFrame(frameMs)
     activeRafId = requestAnimationFrame(stepFrame)
@@ -355,13 +397,27 @@ function createPlaybackController(events, refs) {
 
     const defendingTeam = possessionTeam === 'A' ? 'B' : 'A'
     const pressing = tacticsBySide?.[defendingTeam]?.pressing ?? 0.5
-    const pursuerCount = pressing > 0.66 ? 2 : 1
+    // 압박은 상시 2인 협응(고압박이면 3인) — 첫째는 볼로 직행, 둘째는 커버 각(볼과 자기 골
+    // 사이)을 잡아 겹치지 않는다. 이전엔 pressing>0.66에서만 2명 + 둘 다 같은 점이라 포갬.
+    const pursuerCount = pressing > 0.7 ? 3 : 2
     const pursuers = steeringRefs
       .filter((r) => r.team === defendingTeam && !r.isGK && !pullOverrides.has(r.playerId))
       .map((r) => ({ r, d: Math.hypot(r.current.left - eventPos.left, r.current.top - eventPos.top) }))
       .sort((a, b) => a.d - b.d)
       .slice(0, pursuerCount)
-    for (const { r } of pursuers) pullOverrides.set(r.playerId, eventPos)
+    const ownGoalTop = defendingTeam === 'A' ? 0 : 100
+    pursuers.forEach(({ r }, i) => {
+      if (i === 0) {
+        pullOverrides.set(r.playerId, eventPos) // 첫째 — 볼 직접 압박
+      } else {
+        // 둘째·셋째 — 볼과 자기 골 사이 커버 지점(측면 오프셋으로 스택 방지).
+        const side = i === 1 ? 1 : -1
+        pullOverrides.set(r.playerId, {
+          left: eventPos.left + side * 6,
+          top: eventPos.top + (ownGoalTop - eventPos.top) * 0.28,
+        })
+      }
+    })
 
     if (event.type === 'carry') {
       backend.applyEventVisual({ kind: 'dribble', playerId: event.actorId })
