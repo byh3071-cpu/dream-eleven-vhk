@@ -140,6 +140,7 @@ function createPlaybackController(events, refs) {
   const pullOverrides = new Map()
   let activeFlair = null
   let celebration = null
+  const strongPullIds = new Set() // 세트피스 쇄도 등 강풀(캡 큰) override 대상
 
   const refsById = new Map(steeringRefs.map((ref) => [ref.playerId, ref]))
   const resolveTokenPos = (playerId) => {
@@ -248,7 +249,7 @@ function createPlaybackController(events, refs) {
       } else {
         const override = pullOverrides.get(ref.playerId)
         target = override
-          ? computeOverrideTarget(ref.basePos, override)
+          ? computeOverrideTarget(ref.basePos, override, strongPullIds.has(ref.playerId) ? 70 : undefined)
           : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
             supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
             penetrate: ref.playerId === penetratorId,
@@ -320,12 +321,50 @@ function createPlaybackController(events, refs) {
     const isCurl = event.finishType === 'curl'
     const isLong = event.finishType === 'long_range'
     const ms = isLong ? baseMs * 1.4 : baseMs
-    if (toToken) return flightToTokenState(from, toTarget, ms)
+    // 중거리는 볼 시작점을 슈터 존점(밴드3)으로 물린다 — ballScreenPos(직전 볼=박스 배달
+    // 지점)에서 쏘면 "슈터는 중앙, 볼은 골문 앞" 순간이동 인상이 남는다(렌더만, 판정 무관).
+    const start = isLong ? eventPosition(event) : from
+    if (toToken) return flightToTokenState(start, toTarget, ms)
     if (isCurl) {
       const bend = (event.channel === 'LEFT' ? 1 : event.channel === 'RIGHT' ? -1 : (event.minute % 2 ? 1 : -1)) * 9
-      return flightCurlState(from, toTarget, ms, bend)
+      return flightCurlState(start, toTarget, ms, bend)
     }
-    return flightToPointState(from, toTarget, ms)
+    return flightToPointState(start, toTarget, ms)
+  }
+
+  // 세트피스 크라우드 판정 — 코너/FK크로스(공 비행)와 그 헤더 종결(via)까지 대형 유지.
+  function isSetPieceCrowd(event) {
+    return event.type === 'corner_kick'
+      || (event.type === 'free_kick' && event.variant === 'cross')
+      || event.via === 'header_corner' || event.via === 'header_fk'
+  }
+
+  // 세트피스 쇄도 — 공격 지정 인원을 상대 박스로, 수비를 자기 박스로(양팀 같은 박스=공격
+  // 진영 골문). 강풀(strongPullIds)로 캡을 키워 먼 선수도 도달. pullOverrides가 매 이벤트
+  // clear라 self-expiring(헤더 종결 다음 오픈플레이에서 자연 해제).
+  function setPieceCrowd(event) {
+    const attackTeam = event.team // 세트피스 event.team = 공격(소유)팀
+    const defendTeam = attackTeam === 'A' ? 'B' : 'A'
+    const boxTop = screenTop(BAND_Y.BOX, attackTeam) // 양팀 모이는 공격 진영 박스
+    const laneX = [CHANNEL_X.LEFT, CHANNEL_X.CENTER, CHANNEL_X.RIGHT, 36, 64]
+    const attackers = steeringRefs
+      .filter((r) => r.team === attackTeam && !r.isGK && !pullOverrides.has(r.playerId))
+      .map((r) => ({ r, fwd: attackTeam === 'A' ? -r.basePos.top : r.basePos.top })) // 전방일수록 큼
+      .sort((a, b) => b.fwd - a.fwd) // 전방 선수(공격수·윙어) 우선 박스 쇄도
+      .slice(0, 4)
+    attackers.forEach(({ r }, i) => {
+      pullOverrides.set(r.playerId, { left: laneX[i % laneX.length], top: boxTop })
+      strongPullIds.add(r.playerId)
+    })
+    const defenders = steeringRefs
+      .filter((r) => r.team === defendTeam && !r.isGK && !pullOverrides.has(r.playerId))
+      .map((r) => ({ r, d: Math.abs(r.basePos.top - boxTop) }))
+      .sort((a, b) => a.d - b.d) // 이미 박스 가까운 수비 우선
+      .slice(0, 5)
+    defenders.forEach(({ r }, i) => {
+      pullOverrides.set(r.playerId, { left: laneX[(i + 1) % laneX.length], top: boxTop })
+      strongPullIds.add(r.playerId)
+    })
   }
 
   function applyEvent(event, { visualOnly = false } = {}) {
@@ -382,6 +421,7 @@ function createPlaybackController(events, refs) {
     }
 
     pullOverrides.clear()
+    strongPullIds.clear()
     const eventPos = event.type === 'corner_kick'
       ? cornerSpotOf(event.team, event.side)
       : eventPosition(event)
@@ -395,6 +435,10 @@ function createPlaybackController(events, refs) {
       if (gkId) pullOverrides.set(gkId, goalMouthOf(event.team))
     }
 
+    // 세트피스 크라우드면 압박 대신 박스 쇄도(양팀 박스로) — 데드볼 긴장.
+    if (isSetPieceCrowd(event)) {
+      setPieceCrowd(event)
+    } else {
     const defendingTeam = possessionTeam === 'A' ? 'B' : 'A'
     const pressing = tacticsBySide?.[defendingTeam]?.pressing ?? 0.5
     // 압박은 상시 2인 협응(고압박이면 3인) — 첫째는 볼로 직행, 둘째는 커버 각(볼과 자기 골
@@ -418,6 +462,7 @@ function createPlaybackController(events, refs) {
         })
       }
     })
+    }
 
     if (event.type === 'carry') {
       backend.applyEventVisual({ kind: 'dribble', playerId: event.actorId })

@@ -94,12 +94,14 @@ export function computeFlexTarget(basePos, ballPos, team, hasPossession, flex = 
 const OVERRIDE_PULL_FRACTION = 0.55
 const OVERRIDE_MAX_PULL = 16
 
-export function computeOverrideTarget(basePos, point) {
+export function computeOverrideTarget(basePos, point, maxPull = OVERRIDE_MAX_PULL) {
   const dx = point.left - basePos.left
   const dy = point.top - basePos.top
   const dist = Math.hypot(dx, dy)
   if (dist === 0) return { left: basePos.left, top: basePos.top }
-  const pull = Math.min(dist * OVERRIDE_PULL_FRACTION, OVERRIDE_MAX_PULL)
+  // 세트피스 쇄도는 강풀(큰 maxPull)로 홈존이 먼 선수도 박스까지 도달시킨다 — 기본 16%
+  // 캡이면 슬롯에서 16%만 이동해 박스 근처도 못 간다(정찰 확인한 캡 함정).
+  const pull = Math.min(dist * OVERRIDE_PULL_FRACTION, maxPull)
   const ratio = pull / dist
   return { left: basePos.left + dx * ratio, top: basePos.top + dy * ratio }
 }

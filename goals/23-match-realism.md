@@ -59,10 +59,17 @@ priority: P1
   +측면 오프셋으로 스택 방지). 침투 러너 — 최전방 비홀더 1명이 볼 반대 채널로 배후 대각 런.
 - anti-float 2D/3D·테스트 299 통과(steering.test 라인시프트 반영 갱신).
 
-## Phase E — 세트피스 + 슛 위치 (matchPlayback + setpieces + possession)
-진단: 코너/FK인데 박스 쇄도 없음, 중거리 슛인데 볼이 골문 앞에서 시작.
-- **E1 (MED)** 세트피스 박스 쇄도: 코너/FK 시 공격 지정 인원 상대 박스로·수비 자기 박스로.
-- **E2 (MED)** 중거리 볼 시작점: 슈터 실제(밴드3) 위치에서 볼 출발 + 비행 길게.
+## Phase E (DONE) — 세트피스 + 슛 위치 (matchPlayback)
+진단: 코너/FK인데 박스 쇄도 없음(키커+수비 1명만 코너 깃발로, 20명 제자리), 중거리 슛인데
+볼이 골문 앞에서 시작.
+- **E1 (MED)** 세트피스 박스 쇄도: isSetPieceCrowd(코너/FK크로스/헤더 종결) 시 공격 전방
+  4명을 상대 박스로·수비 5명을 자기 박스로(양팀 같은 박스). 정찰이 잡은 캡 함정
+  (OVERRIDE_MAX_PULL 16%면 박스 근처도 못 감) → computeOverrideTarget에 maxPull 인자
+  추가, 세트피스는 strongPullIds로 70% 강풀. pullOverrides self-expiring(다음 오픈플레이
+  이벤트 clear). 관전 실측: 코너 시 박스 밀집 확인.
+- **E2 (MED)** 중거리 볼 시작점: Fix B(렌더만) — shotFlight에서 long_range면 볼 시작을
+  eventPosition(슈터 밴드3 존점)으로. possession의 hoist(Fix A)는 penalty/blockedCorner
+  경로에서 narrationRng 추가 소비 위험이 있어 렌더 계층으로 회피(핀/몬테카를로 100% 무영향).
 
 ## 검증 원칙
 - Phase C/D: anti-float 2D/3D 재통과가 무손실 증거. 각 Phase 후 3D 직접 관전 재확인
