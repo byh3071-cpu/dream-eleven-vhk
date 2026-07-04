@@ -52,6 +52,20 @@
   --pitch3d-sun: #ffffff;
   --pitch3d-label-stroke: rgba(0, 0, 0, 0.72);
   --pitch3d-skin: #d9b38c;
+  /* 스타디움(goal 22) — 관중석/관중/조명탑/전광판/골네트/그림자/야간 프리셋 */
+  --pitch3d-stand: #10151f;
+  --pitch3d-stand-rail: #1c2433;
+  --pitch3d-crowd-home: #f0b429;
+  --pitch3d-crowd-away: #6fb6ff;
+  --pitch3d-crowd-neutral: #8b93a7;
+  --pitch3d-net: rgba(230, 235, 245, 0.32);
+  --pitch3d-shadow: rgba(0, 0, 0, 0.38);
+  --pitch3d-tower: #2a3446;
+  --pitch3d-floodlight: #fbf3d0;
+  --pitch3d-board-bg: #0a0d13;
+  --pitch3d-board-text: #ffd873;
+  --pitch3d-night-sky: #0a1420;
+  --pitch3d-night-ground: #05100a;
   --glow-gold: rgba(255, 216, 115, 0.7);
   --border-faint: rgba(255, 255, 255, 0.15);
 

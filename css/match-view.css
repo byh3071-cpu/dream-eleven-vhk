@@ -191,9 +191,17 @@
 @media (min-width: 920px) {
   .match__stage {
     flex-direction: row;
-    align-items: stretch;
+    /* flex-start: 피치가 stretch로 세로 폭발하지 않게(aspect-ratio 보존). 커멘터리만
+       개별 stretch로 피치 높이를 따라간다 — align-items: stretch면 피치까지 늘어난다. */
+    align-items: flex-start;
     justify-content: center;
     gap: var(--space-8);
+  }
+
+  /* 피치·3D 뷰는 자기 aspect-ratio를 지킨다(늘어남 금지). */
+  .match__stage .match__pitch,
+  .match__stage .match__pitch3d {
+    flex: 0 0 auto;
   }
 
   /* 커멘터리가 피치 높이를 꽉 채워 따라간다 — 사이 여백 최소화(사용자 지적). */

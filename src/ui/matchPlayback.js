@@ -120,10 +120,12 @@ function withSlotPositions(squad11, formation) {
 // 이벤트 로그 재생 컨트롤러 — 사전계산 후 리플레이. 물리/타깃 계산 전부 여기서 하고
 // backend.syncFrame(frame)에 "그릴 것"만 넘긴다(frame은 % 논리 좌표).
 function createPlaybackController(events, refs) {
-  const { backend, scoreEl, minuteEl, commentaryEl, onPhaseChange, steeringRefs, tacticsBySide, resolvePlayer } = refs
+  let { backend } = refs
+  const { scoreEl, minuteEl, commentaryEl, onPhaseChange, steeringRefs, tacticsBySide, resolvePlayer } = refs
   let index = 0
   let speed = 1
   const score = { home: 0, away: 0 }
+  let lastMinute = 0 // 전광판(3D) 미러용 — applyEvent에서 갱신
   let possessionTeam = null
   let lastFrameTime = null
 
@@ -170,6 +172,8 @@ function createPlaybackController(events, refs) {
       tokens: steeringRefs,
       ball: currentBall(),
       dtMs, // 백엔드 모션 시계(3D 달리기 스윙 등) — 배속/리플레이 슬로모 자동 반영
+      score: { home: score.home, away: score.away }, // 3D 전광판 미러(2D는 무시)
+      minute: lastMinute,
     })
   }
 
@@ -260,7 +264,7 @@ function createPlaybackController(events, refs) {
 
   function applyEvent(event, { visualOnly = false } = {}) {
     possessionTeam = possessionTeamOf(event)
-    if (!visualOnly) minuteEl.textContent = `${event.minute}'`
+    if (!visualOnly) { minuteEl.textContent = `${event.minute}'`; lastMinute = event.minute }
 
     // 킥 모션 트리거 — 비행 전이 직전의 보유자(볼을 보내는 발).
     const kickerId = ballState.mode === 'held' ? ballState.holderId : null
@@ -451,6 +455,7 @@ function createPlaybackController(events, refs) {
     commentaryEl.replaceChildren()
     score.home = 0
     score.away = 0
+    lastMinute = 0
     for (const ref of steeringRefs) {
       ref.current = { ...ref.basePos }
       ref.velocity = { left: 0, top: 0 }
@@ -460,6 +465,13 @@ function createPlaybackController(events, refs) {
   }
 
   return {
+    // 재생 중에도 렌더 백엔드만 교체(index/타이머/점수 유지) — 컨트롤러가 다음
+    // 프레임부터 새 백엔드에 그린다. 화면 전환의 매끄러움이 목적(사용자 보고).
+    swapBackend(nextBackend) {
+      backend = nextBackend
+      backend.beginPlayback()
+      syncFrame(0) // 즉시 1프레임 그려 빈 화면 방지
+    },
     start() {
       clearActiveTimer()
       clearActiveRaf()
@@ -672,12 +684,16 @@ export function buildPlaybackView({
   // 3D 모듈은 선택 시에만 dynamic import(2D 사용자 다운로드 비용 0). 실패 시 2D 폴백.
   const modeBtns = {}
   let swapping = false
+  // 렌더러 전환 — 재생 중/일시정지/종료/킥오프전 어느 상태에서도 가능(사용자 보고
+  // 반영: 이전엔 재생 중 무반응이라 "3D 전환 안 됨"으로 보였다). 재생 중이면 컨트롤러
+  // 백엔드만 교체해 index/타이머/점수를 유지하고, 컨트롤러가 없으면(idle/done) 백엔드만
+  // 갈아끼운다(done은 '다시보기' 대기).
   async function swapTo(mode) {
-    if (swapping || (playbackPhase === 'playing' || playbackPhase === 'paused')) return
+    if (swapping) return
     const current = backend.root.classList.contains('match__pitch3d') ? '3d' : '2d'
     if (mode === current) return
     swapping = true
-    ui.kickoffBtn.disabled = true
+    for (const btn of Object.values(modeBtns)) btn.disabled = true
     try {
       let nextBackend
       if (mode === '3d') {
@@ -695,17 +711,16 @@ export function buildPlaybackView({
       backend.beginPlayback()
       mountExtraControls()
       setRendererPref(mode)
-      // done 상태였다면 같은 이벤트 로그를 새 백엔드로 재생할 컨트롤러 재생성
-      // ('다시보기' 대기 — 자동 재생하지 않는다).
-      if (controller && lastResult) {
-        controller = makeController(lastResult)
+      if (controller) {
+        // 재생/일시정지/종료 무관 — 컨트롤러가 새 백엔드로 이어 그린다.
+        controller.swapBackend(backend)
       }
       Object.entries(modeBtns).forEach(([key, btn]) => btn.classList.toggle('chip--active', key === mode))
     } catch (err) {
       console.error('3D 렌더러 로드 실패 — 2D 유지:', err)
     } finally {
       swapping = false
-      ui.kickoffBtn.disabled = playbackPhase === 'playing'
+      for (const btn of Object.values(modeBtns)) btn.disabled = false
     }
   }
 

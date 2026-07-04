@@ -95,20 +95,165 @@ function makeLabelSprite(player, teamColorCss) {
   return sprite
 }
 
-function makeGoal() {
+function makeGoal(track) {
   const group = new THREE.Group()
-  const mat = new THREE.MeshBasicMaterial({ color: tokenOf('--pitch3d-goal') })
-  const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 3.2, 8)
+  const mat = track(new THREE.MeshBasicMaterial({ color: tokenOf('--pitch3d-goal') }))
+  const postGeo = track(new THREE.CylinderGeometry(0.22, 0.22, 3.2, 8))
   for (const x of [-5.5, 5.5]) {
     const post = new THREE.Mesh(postGeo, mat)
     post.position.set(x, 1.6, 0)
     group.add(post)
   }
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 11, 8), mat)
+  const bar = new THREE.Mesh(track(new THREE.CylinderGeometry(0.22, 0.22, 11, 8)), mat)
   bar.rotation.z = Math.PI / 2
   bar.position.y = 3.2
   group.add(bar)
+
+  // 골네트 — 뒤로 기운 반투명 그리드(뒷면·바닥·측면). WireframeGeometry로 그물눈.
+  const netMat = track(new THREE.LineBasicMaterial({
+    color: tokenOf('--pitch3d-net'), transparent: true, opacity: 0.5,
+  }))
+  const back = track(new THREE.PlaneGeometry(11, 3.2, 8, 4))
+  const backNet = new THREE.LineSegments(track(new THREE.WireframeGeometry(back)), netMat)
+  backNet.position.set(0, 1.6, -2.6)
+  group.add(backNet)
+  const roof = track(new THREE.PlaneGeometry(11, 2.9, 8, 3))
+  const roofNet = new THREE.LineSegments(track(new THREE.WireframeGeometry(roof)), netMat)
+  roofNet.rotation.x = Math.PI / 2
+  roofNet.position.set(0, 3.1, -1.3)
+  group.add(roofNet)
+  for (const sx of [-5.5, 5.5]) {
+    const side = track(new THREE.PlaneGeometry(2.6, 3.2, 2, 4))
+    const sideNet = new THREE.LineSegments(track(new THREE.WireframeGeometry(side)), netMat)
+    sideNet.rotation.y = Math.PI / 2
+    sideNet.position.set(sx, 1.6, -1.3)
+    group.add(sideNet)
+  }
   return group
+}
+
+// 계단식 관중석 + 인스턴스드 관중 점묘 + 조명탑 + 전광판(스코어 미러). goal 22.
+// 반환 stadium은 syncFrame이 쓰는 갱신 훅(전광판/관중 웨이브)을 노출한다.
+function makeStadium(track, scene, teamColors, FIELD_W, FIELD_L) {
+  const standMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--pitch3d-stand') }))
+  const railMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--pitch3d-stand-rail') }))
+
+  // 4면 경사 스탠드(3단 계단) — 안쪽이 낮고 바깥이 높다.
+  const TIERS = 3
+  const standSpecs = [
+    { long: true, z: -(FIELD_L / 2 + 6), dir: -1 }, // 홈 골문 뒤(A 기준)
+    { long: true, z: FIELD_L / 2 + 6, dir: 1 },
+    { long: false, x: -(FIELD_W / 2 + 6), dir: -1 },
+    { long: false, x: FIELD_W / 2 + 6, dir: 1 },
+  ]
+  for (const spec of standSpecs) {
+    const spanLong = spec.long ? FIELD_W + 40 : FIELD_L + 16
+    for (let tier = 0; tier < TIERS; tier++) {
+      const depth = 5
+      const geo = track(new THREE.BoxGeometry(spec.long ? spanLong : 10, 3, spec.long ? 10 : spanLong))
+      const step = new THREE.Mesh(geo, tier === 1 ? railMat : standMat)
+      const outward = spec.dir * (tier * depth)
+      const y = 1.5 + tier * 2.4
+      if (spec.long) step.position.set(0, y, spec.z + outward)
+      else step.position.set(spec.x + outward, y, 0)
+      scene.add(step)
+    }
+  }
+
+  // 관중 점묘 — InstancedMesh(작은 박스). 스탠드 경사면에 격자 배치, 팀색 반반.
+  const isHomeSide = (spec) => spec.z !== undefined ? spec.z < 0 : spec.x < 0
+  const homeColor = new THREE.Color(tokenOf('--pitch3d-crowd-home'))
+  const awayColor = new THREE.Color(tokenOf('--pitch3d-crowd-away'))
+  const perStand = 180
+  const total = standSpecs.length * perStand
+  const crowdGeo = track(new THREE.BoxGeometry(0.9, 1.4, 0.9))
+  const crowdMat = track(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x111318) }))
+  const crowd = new THREE.InstancedMesh(crowdGeo, crowdMat, total)
+  crowd.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3)
+  const dummy = new THREE.Object3D()
+  const crowdMeta = [] // 인스턴스별 {baseY, side} — 웨이브
+  let idx = 0
+  for (const spec of standSpecs) {
+    const home = isHomeSide(spec)
+    const spanLong = spec.long ? FIELD_W + 34 : FIELD_L + 12
+    const cols = 30
+    const rows = Math.ceil(perStand / cols)
+    for (let i = 0; i < perStand; i++) {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const alongT = (col / (cols - 1) - 0.5) * spanLong
+      const tierT = row / rows
+      const outward = spec.dir * (tierT * 13)
+      const y = 3.2 + tierT * 7
+      if (spec.long) dummy.position.set(alongT, y, spec.z + outward + spec.dir * 3)
+      else dummy.position.set(spec.x + outward + spec.dir * 3, y, alongT)
+      dummy.rotation.set(0, 0, 0)
+      dummy.updateMatrix()
+      crowd.setMatrixAt(idx, dummy.matrix)
+      const c = home ? homeColor : awayColor
+      // 좌석 간 색 편차(응원 물결 느낌) — 결정론 지터.
+      const jitter = 0.72 + ((idx * 2654435761) % 100) / 360
+      crowd.setColorAt(idx, c.clone().multiplyScalar(jitter))
+      crowdMeta.push({ baseY: y, home })
+      idx++
+    }
+  }
+  crowd.instanceMatrix.needsUpdate = true
+  if (crowd.instanceColor) crowd.instanceColor.needsUpdate = true
+  scene.add(crowd)
+
+  // 조명탑 4개(코너) — 기둥 + 발광 헤드.
+  const towerMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--pitch3d-tower') }))
+  const lightMat = track(new THREE.MeshBasicMaterial({ color: tokenOf('--pitch3d-floodlight') }))
+  const towerGeo = track(new THREE.CylinderGeometry(0.8, 1.2, 34, 6))
+  const headGeo = track(new THREE.BoxGeometry(7, 3, 1.5))
+  const cornerX = FIELD_W / 2 + 24
+  const cornerZ = FIELD_L / 2 + 20
+  const towerHeads = []
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const tower = new THREE.Mesh(towerGeo, towerMat)
+    tower.position.set(sx * cornerX, 17, sz * cornerZ)
+    scene.add(tower)
+    const head = new THREE.Mesh(headGeo, lightMat)
+    head.position.set(sx * cornerX, 33, sz * cornerZ - sz * 1)
+    head.lookAt(0, 0, 0)
+    scene.add(head)
+    towerHeads.push(head)
+  }
+
+  // 전광판 — 한쪽 스탠드 위 큰 판. 캔버스 텍스처로 스코어/분 미러.
+  const boardCanvas = document.createElement('canvas')
+  boardCanvas.width = 512
+  boardCanvas.height = 160
+  const boardTex = track(new THREE.CanvasTexture(boardCanvas))
+  boardTex.colorSpace = THREE.SRGBColorSpace
+  const boardMat = track(new THREE.MeshBasicMaterial({ map: boardTex }))
+  const board = new THREE.Mesh(track(new THREE.PlaneGeometry(30, 9.4)), boardMat)
+  board.position.set(0, 20, -(FIELD_L / 2 + 17))
+  board.lookAt(0, 12, 0)
+  scene.add(board)
+
+  function drawBoard(homeScore, awayScore, minute) {
+    const g = boardCanvas.getContext('2d')
+    g.fillStyle = tokenOf('--pitch3d-board-bg', 'black')
+    g.fillRect(0, 0, 512, 160)
+    g.fillStyle = tokenOf('--pitch3d-board-text', 'gold')
+    g.font = '800 96px "Cascadia Code", monospace'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(`${homeScore} - ${awayScore}`, 256, 66)
+    g.font = '600 40px "Cascadia Code", monospace'
+    g.fillText(`${minute}'`, 256, 130)
+    boardTex.needsUpdate = true
+  }
+  drawBoard(0, 0, 0)
+
+  return {
+    crowd, crowdMeta,
+    towerHeads, lightMat,
+    drawBoard,
+    lastBoard: '',
+  }
 }
 
 export function createThreePitchBackend() {
@@ -123,6 +268,12 @@ export function createThreePitchBackend() {
   let destroyed = false
   const rigById = new Map()
   let ballMesh = null
+  let stadium = null
+  let hemiLight = null
+  let sunLight = null
+  let crowdWaveT = 0 // 골 시 관중 웨이브(1→0 감쇠)
+  let crowdWaveHome = true
+  let night = false
   const disposables = []
 
   // ---------- 카메라 연출(goal 19-3) — 순수 뷰, 판정/컨트롤러 무영향 ----------
@@ -180,6 +331,7 @@ export function createThreePitchBackend() {
     camera.lookAt(cameraRig.lookTarget)
   }
 
+  const crowdWaveDummy = new THREE.Object3D()
   const toX = (left) => ((left - 50) / 100) * FIELD_W
   const toZ = (top) => ((top - 50) / 100) * FIELD_L
 
@@ -238,6 +390,17 @@ export function createThreePitchBackend() {
       celebrateT: 0,
       prev: null,
     }
+
+    // 발밑 블롭 그림자 — 원반(공중에 뜬 느낌 제거).
+    const shadow = new THREE.Mesh(
+      track(new THREE.CircleGeometry(1.3, 16)),
+      track(new THREE.MeshBasicMaterial({ color: tokenOf('--pitch3d-shadow'), transparent: true, opacity: 0.55 })),
+    )
+    shadow.rotation.x = -Math.PI / 2
+    shadow.position.y = 0.05
+    group.add(shadow)
+    group.userData.shadow = shadow
+
     return group
   }
 
@@ -251,9 +414,34 @@ export function createThreePitchBackend() {
     cameraBtn.textContent = CAMERA_PRESETS[cameraRig.presetIndex].name
   })
 
+  // 주간/야간 조명 토글 — 조명탑이 야간에 의미를 갖는다.
+  const nightBtn = document.createElement('button')
+  nightBtn.type = 'button'
+  nightBtn.className = 'chip'
+  nightBtn.textContent = '주간'
+  nightBtn.addEventListener('click', () => {
+    night = !night
+    nightBtn.textContent = night ? '야간' : '주간'
+    applyLighting()
+  })
+
+  function applyLighting() {
+    if (!scene) return
+    if (night) {
+      scene.background = new THREE.Color(tokenOf('--pitch3d-night-sky'))
+      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-night-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-night-ground')); hemiLight.intensity = 0.55 }
+      if (sunLight) sunLight.intensity = 0.7
+      if (stadium) stadium.lightMat.color.set(tokenOf('--pitch3d-floodlight'))
+    } else {
+      scene.background = new THREE.Color(tokenOf('--bg-primary', 'black'))
+      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-ground')); hemiLight.intensity = 1.15 }
+      if (sunLight) sunLight.intensity = 1.4
+    }
+  }
+
   return {
     root,
-    extraControls: [cameraBtn],
+    extraControls: [cameraBtn, nightBtn],
 
     mount({ tokens, teamColors }) {
       renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -268,10 +456,11 @@ export function createThreePitchBackend() {
       camera.position.set(...CAMERA_PRESETS[0].pos)
       camera.lookAt(...CAMERA_PRESETS[0].look)
 
-      scene.add(new THREE.HemisphereLight(tokenOf('--pitch3d-sky'), tokenOf('--pitch3d-ground'), 1.15))
-      const sun = new THREE.DirectionalLight(tokenOf('--pitch3d-sun'), 1.4)
-      sun.position.set(-30, 60, 20)
-      scene.add(sun)
+      hemiLight = new THREE.HemisphereLight(tokenOf('--pitch3d-sky'), tokenOf('--pitch3d-ground'), 1.15)
+      scene.add(hemiLight)
+      sunLight = new THREE.DirectionalLight(tokenOf('--pitch3d-sun'), 1.4)
+      sunLight.position.set(-30, 60, 20)
+      scene.add(sunLight)
 
       const pitchTex = track(makePitchTexture())
       const pitchMat = track(new THREE.MeshLambertMaterial({ map: pitchTex }))
@@ -279,27 +468,19 @@ export function createThreePitchBackend() {
       pitch.rotation.x = -Math.PI / 2
       scene.add(pitch)
 
-      const standMat = track(new THREE.MeshLambertMaterial({ color: tokenOf('--bg-panel', 'black') }))
-      const standGeoLong = track(new THREE.BoxGeometry(FIELD_W + 26, 7, 9))
-      const standGeoSide = track(new THREE.BoxGeometry(9, 7, FIELD_L + 8))
-      for (const [geo, x, z] of [
-        [standGeoLong, 0, -(FIELD_L / 2 + 9)], [standGeoLong, 0, FIELD_L / 2 + 9],
-        [standGeoSide, -(FIELD_W / 2 + 9), 0], [standGeoSide, FIELD_W / 2 + 9, 0],
-      ]) {
-        const stand = new THREE.Mesh(geo, standMat)
-        stand.position.set(x, 3.5, z)
-        scene.add(stand)
-      }
+      stadium = makeStadium(track, scene, teamColors, FIELD_W, FIELD_L)
 
-      const goalTop = makeGoal()
+      const goalTop = makeGoal(track)
       goalTop.position.z = -FIELD_L / 2
       scene.add(goalTop)
-      const goalBottom = makeGoal()
+      const goalBottom = makeGoal(track)
       goalBottom.position.z = FIELD_L / 2
       scene.add(goalBottom)
 
       for (const token of tokens) {
         const rig = makeHumanoid(resolveCssColor(teamColors[token.team]), rigById.size)
+        rig.userData.team = token.team
+        rig.userData.isGK = token.player.positions.includes('GK')
         rig.position.set(toX(token.basePos.left), 0, toZ(token.basePos.top))
         rig.add(makeLabelSprite(token.player, teamColors[token.team]))
         scene.add(rig)
@@ -329,7 +510,7 @@ export function createThreePitchBackend() {
       return !destroyed && document.contains(root)
     },
 
-    syncFrame({ tokens, ball, dtMs = 0 }) {
+    syncFrame({ tokens, ball, dtMs = 0, score = null, minute = 0 }) {
       if (destroyed) return
       for (const token of tokens) {
         const rig = rigById.get(token.playerId)
@@ -395,6 +576,30 @@ export function createThreePitchBackend() {
 
       applyCameraFrame(ballMesh.position, dtMs)
 
+      // 전광판 미러 — 값 변화 시에만 텍스처 재드로잉(매 프레임 업로드 회피).
+      if (stadium && score) {
+        const key = `${score.home}-${score.away}-${minute}`
+        if (key !== stadium.lastBoard) {
+          stadium.drawBoard(score.home, score.away, minute)
+          stadium.lastBoard = key
+        }
+      }
+      // 관중 웨이브 — 골 시 득점팀 스탠드가 기립(y 상승) 후 지수 복귀.
+      if (stadium && crowdWaveT > 0.01) {
+        const dummy = crowdWaveDummy
+        for (let i = 0; i < stadium.crowdMeta.length; i++) {
+          const meta = stadium.crowdMeta[i]
+          if (meta.home !== crowdWaveHome) continue
+          stadium.crowd.getMatrixAt(i, dummy.matrix)
+          dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale)
+          dummy.position.y = meta.baseY + crowdWaveT * 1.4
+          dummy.updateMatrix()
+          stadium.crowd.setMatrixAt(i, dummy.matrix)
+        }
+        stadium.crowd.instanceMatrix.needsUpdate = true
+        if (dtMs > 0) crowdWaveT *= Math.exp(-dtMs / 600)
+      }
+
       root.dataset.ballMode = ball.mode
       root.dataset.holderId = ball.holderId
       if (ball.mode === 'held' && ball.holderId) {
@@ -423,6 +628,15 @@ export function createThreePitchBackend() {
           rig.userData.celebrateT = 1
           cameraRig.zoomT = 1
           cameraRig.zoomFocus = rig.position.clone()
+          // 같은 팀 필드 동료도 점프(컨트롤러가 이미 득점자 쪽으로 모아준다).
+          for (const other of rigById.values()) {
+            if (other !== rig && other.userData.team === rig.userData.team && !other.userData.isGK) {
+              other.userData.celebrateT = 0.85
+            }
+          }
+          // 관중 웨이브 — 득점팀 스탠드 기립.
+          crowdWaveT = 1
+          crowdWaveHome = rig.userData.team === 'A'
         }
         return
       }
@@ -451,6 +665,7 @@ export function createThreePitchBackend() {
       cameraRig.lookTarget = null
       cameraBtn.textContent = CAMERA_PRESETS[0].name
       camera?.position.set(...CAMERA_PRESETS[0].pos)
+      crowdWaveT = 0
       for (const rig of rigById.values()) {
         const u = rig.userData
         u.kickT = 0
