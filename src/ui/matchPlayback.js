@@ -22,6 +22,7 @@ import {
 } from './ballFlight.js'
 import { createDomPitchBackend } from './pitchRenderer.dom.js'
 import { getRendererPref, setRendererPref } from './rendererPref.js'
+import { matchSound, enableSound, disableSound, isSoundOn } from './soundManager.js'
 
 // formations.js 좌표계(y=0 자기골~100 상대골)를 공유 필드의 화면 top%로 바꾼다.
 // 슬롯 배치와 이벤트(공) 위치 계산이 반드시 이 한 함수만 거치게 해서 좌우 팀이
@@ -276,6 +277,7 @@ function createPlaybackController(events, refs) {
       ballState = flightToTokenState(ballScreenPos, event.takerId, CARRY_TRANSFER_MS)
     } else if (event.type === 'corner_kick') {
       ballState = flightToPointState(ballScreenPos, cornerSpotOf(event.team, event.side), flightMs)
+      matchSound('chance')
     } else if (event.type === 'penalty_awarded') {
       ballState = flightToPointState(ballScreenPos, penaltySpotOf(event.team === 'A' ? 'B' : 'A'), flightMs)
     } else if (event.type === 'shot_saved') {
@@ -286,6 +288,8 @@ function createPlaybackController(events, refs) {
 
     if (kickerId && (ballState.mode === 'flight' || ballState.mode === 'flightToPoint')) {
       backend.applyEventVisual({ kind: 'kick', playerId: kickerId })
+      // 킥음은 롱패스/슛/세트피스만 — 숏패스까지 울리면 스팸(체감 실측 기준).
+      if (event.type !== 'pass' || event.style === 'long') matchSound('kick')
     }
 
     pullOverrides.clear()
@@ -334,6 +338,7 @@ function createPlaybackController(events, refs) {
     } else if (event.type === 'foul') {
       backend.applyEventVisual({ kind: 'lunge', playerId: event.actorId })
       backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: event.dangerous ? '파울! 위험한 위치' : '파울' })
+      matchSound('foul')
     } else if (event.type === 'free_kick'
         && resolvePlayer(event.takerId)?.traits?.includes('free_kick_specialist')) {
       backend.applyEventVisual({ kind: 'miniPop', pos: eventPos, text: '프리킥 장인', trait: true })
@@ -357,8 +362,10 @@ function createPlaybackController(events, refs) {
       celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
       backend.applyEventVisual({ kind: 'celebrate', playerId: event.actorId })
       backend.applyEventVisual({ kind: 'flash', variant: 'goal', text: 'GOAL!' })
+      if (!visualOnly) matchSound('goal', { homeSide: event.team === 'A' })
     } else if (event.type === 'yellow_card') {
       backend.applyEventVisual({ kind: 'flash', variant: 'yellow', text: '' })
+      matchSound('card')
     } else if (event.type === 'red_card') {
       backend.applyEventVisual({ kind: 'flash', variant: 'red', text: '' })
       backend.applyEventVisual({ kind: 'sendOff', playerId: event.actorId })
@@ -404,11 +411,15 @@ function createPlaybackController(events, refs) {
       return
     }
 
-    if (index === 0) pushLine("0' 킥오프! 경기가 시작된다")
+    if (index === 0) {
+      pushLine("0' 킥오프! 경기가 시작된다")
+      matchSound('kickoff')
+    }
     if (index >= events.length) {
       clearActiveTimer()
       clearActiveRaf()
       pushLine(`90' 경기 종료 — 최종 스코어 ${score.home} - ${score.away}`)
+      matchSound('fulltime')
       onPhaseChange('done')
       return
     }
@@ -696,6 +707,30 @@ export function buildPlaybackView({
       swapping = false
       ui.kickoffBtn.disabled = playbackPhase === 'playing'
     }
+  }
+
+  // 사운드 토글 — AudioContext 시작은 반드시 유저 제스처(이 클릭)에서.
+  const soundBtn = document.createElement('button')
+  soundBtn.type = 'button'
+  soundBtn.className = 'chip' + (isSoundOn() ? ' chip--active' : '')
+  soundBtn.textContent = isSoundOn() ? '사운드 켜짐' : '사운드'
+  soundBtn.addEventListener('click', async () => {
+    if (soundBtn.classList.contains('chip--active')) {
+      disableSound()
+      soundBtn.classList.remove('chip--active')
+      soundBtn.textContent = '사운드'
+    } else {
+      soundBtn.disabled = true
+      await enableSound()
+      soundBtn.disabled = false
+      soundBtn.classList.add('chip--active')
+      soundBtn.textContent = '사운드 켜짐'
+    }
+  })
+  ui.bar.appendChild(soundBtn)
+  // 저장된 선호가 on이면 첫 유저 제스처(킥오프 클릭)에서 자동 활성화.
+  if (isSoundOn()) {
+    ui.kickoffBtn.addEventListener('click', () => { enableSound() }, { once: true })
   }
 
   const modeWrap = document.createElement('div')
