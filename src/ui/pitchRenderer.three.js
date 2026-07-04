@@ -373,6 +373,7 @@ export function createThreePitchBackend() {
     const head = new THREE.Mesh(track(new THREE.SphereGeometry(0.62, 12, 10)), skinMat)
     head.position.y = SHOULDER_Y + 0.75
     group.add(head)
+    group.userData.head = head
 
     const limb = (geoLen, radius, mat) => {
       const pivot = new THREE.Group()
@@ -566,31 +567,68 @@ export function createThreePitchBackend() {
         u.prev = { x, z }
 
         // 달리기 스윙 — 다리 교차 + 팔 반대 스윙, 진폭은 속도 비례(정지 시 잔잔한 대기).
-        const amp = 0.08 + Math.min(0.85, speed * 90)
-        u.phase += dtMs * (0.004 + speed * 1.1)
+        // 드리블 중이면 잔발(케이던스 가속 + 진폭 살짝) — 볼 몰고 가는 느낌.
+        if (u.dribbleT > 0.01 && dtMs > 0) u.dribbleT *= Math.exp(-dtMs / 700)
+        const dribbleBoost = u.dribbleT > 0.05 ? (1 + u.dribbleT * 1.4) : 1
+        const amp = (0.08 + Math.min(0.85, speed * 90)) * (u.dribbleT > 0.05 ? 1.15 : 1)
+        u.phase += dtMs * (0.004 + speed * 1.1) * dribbleBoost
         const swing = Math.sin(u.phase)
         u.legL.rotation.x = swing * amp
         u.legR.rotation.x = -swing * amp
         u.armL.rotation.x = -swing * amp * 0.75
         u.armR.rotation.x = swing * amp * 0.75
 
-        // 킥 — 오른발 앞스윙이 달리기 스윙 위에 덮인다(즉발 후 지수 감쇠).
+        // 킥 — 오른발 앞스윙. power로 스윙 크기 차등(숏패스=툭, 슛=강). 즉발 후 감쇠.
         if (u.kickT > 0.01) {
-          u.legR.rotation.x = -u.kickT * 1.5
-          u.armL.rotation.x = u.kickT * 0.8
-          if (dtMs > 0) u.kickT *= Math.exp(-dtMs / 130)
+          const kp = u.kickPower
+          u.legR.rotation.x = -u.kickT * 1.5 * kp
+          u.armL.rotation.x = u.kickT * 0.8 * kp
+          if (dtMs > 0) u.kickT *= Math.exp(-dtMs / (100 + kp * 60))
         }
 
-        // GK 다이빙 세이브 — 몸을 옆으로 눕히고(rotation.z) 그 방향으로 hop + 팔 뻗기.
-        if (u.saveT > 0.01) {
+        // 볼 마중/트래핑 — 무릎 살짝 굽히듯 몸 낮추고 앞발 내밈(볼이 알아서 붙던 인상 제거).
+        if (u.receiveT > 0.01) {
+          u.legL.rotation.x = u.receiveT * 0.5
+          rig.position.y = -u.receiveT * 0.25
+          if (dtMs > 0) u.receiveT *= Math.exp(-dtMs / 180)
+          if (u.receiveT < 0.05) { u.receiveT = 0; rig.position.y = 0 }
+        }
+
+        // 고개 리액션 — 볼 방향으로 살짝 돌린다(정적 인상 완화). 볼-선수 수평각 lerp.
+        if (u.head) {
+          const bdx = ballMesh.position.x - x
+          const bdz = ballMesh.position.z - z
+          const targetYaw = Math.atan2(bdx, bdz) - u.heading
+          let d = targetYaw
+          while (d > Math.PI) d -= Math.PI * 2
+          while (d < -Math.PI) d += Math.PI * 2
+          u.head.rotation.y += (Math.max(-0.7, Math.min(0.7, d)) - u.head.rotation.y) * Math.min(1, dtMs / 300)
+        }
+
+        // 볼을 잡았으면 다이빙 즉시 종료 — 옆으로 밀린 rig가 held 볼과 벌어지는 걸 방지
+        // (anti-float held 불변식: 볼=holder.current라 렌더 위치가 밀리면 gap이 뜬다).
+        if (u.saveT > 0.001 && ball.holderId === token.playerId) {
+          u.saveT = 0
+          rig.rotation.z = 0
+          rig.position.y = 0
+        }
+        // GK 다이빙 세이브 — 옆으로 몸을 날려 공중에 뜬 채 잠깐 유지 후 착지.
+        // rise→plateau→fall 엔벨로프(이전엔 순간 지수 감쇠 + 공중 성분이 死코드라
+        // "살짝 기우는" 인상뿐이었다 — 아래 else-if 가드로 position.y를 살린다).
+        if (u.saveT > 0.001) {
           const dir = u.saveDir || 1
-          rig.rotation.z = dir * u.saveT * 1.1
-          rig.position.x += dir * u.saveT * 2.4
-          rig.position.y = u.saveT * 1.2
-          u.armL.rotation.x = -u.saveT * 1.6
-          u.armR.rotation.x = -u.saveT * 1.6
-          if (dtMs > 0) u.saveT *= Math.exp(-dtMs / (u.saveBeaten ? 500 : 260))
-          if (u.saveT < 0.05) { u.saveT = 0; rig.rotation.z = 0 }
+          const phase = 1 - u.saveT // 0(발사)→1(착지)
+          const amp = phase < 0.22 ? phase / 0.22           // 빠르게 뻗음
+            : phase < 0.62 ? 1                               // 공중 유지
+            : Math.max(0, (1 - phase) / 0.38)                // 착지
+          rig.rotation.z = dir * amp * 1.55                  // 거의 수평으로 눕힘
+          rig.position.x += dir * amp * 3.6                  // 측면으로 크게 날림
+          rig.position.y = amp * 1.5                         // 공중 부양
+          u.armL.rotation.x = -amp * 1.8
+          u.armR.rotation.x = -amp * 1.8
+          const dur = u.saveBeaten ? 1500 : 1050
+          if (dtMs > 0) u.saveT = Math.max(0, u.saveT - dtMs / dur)
+          if (u.saveT <= 0.001) { u.saveT = 0; rig.rotation.z = 0; rig.position.y = 0 }
         }
 
         // 골 셀레브레이션 — 점프 + 만세.
@@ -606,7 +644,8 @@ export function createThreePitchBackend() {
             u.armR.rotation.x = 0
             rig.position.y = 0
           }
-        } else if (rig.position.y !== 0) {
+        } else if (u.saveT <= 0.001 && u.receiveT <= 0.01 && rig.position.y !== 0) {
+          // save(공중 부양)·receive(몸 낮춤)가 position.y를 관리 중이면 덮지 않는다.
           rig.position.y = 0
         }
       }
@@ -665,7 +704,17 @@ export function createThreePitchBackend() {
     applyEventVisual(fx) {
       if (fx.kind === 'kick') {
         const rig = rigById.get(fx.playerId)
-        if (rig) rig.userData.kickT = 1
+        if (rig) { rig.userData.kickT = 1; rig.userData.kickPower = fx.power ?? 1 }
+        return
+      }
+      if (fx.kind === 'dribble') {
+        const rig = rigById.get(fx.playerId)
+        if (rig) rig.userData.dribbleT = 1 // 잔발 케이던스(달리기 주기 가속)
+        return
+      }
+      if (fx.kind === 'receive') {
+        const rig = rigById.get(fx.playerId)
+        if (rig) rig.userData.receiveT = 1 // 볼 마중 — 몸 살짝 낮추며 트래핑 준비
         return
       }
       if (fx.kind === 'celebrate') {

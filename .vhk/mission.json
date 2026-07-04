@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 23-2단계: 슛 리얼리즘 — GK dive/save fx + 슛 접근 비트 + finishType(중거리/감아차기/발리/헤더). 서술·렌더 계층만, 핀 무수정 통과 증거",
+  "objective": "goal 23 Phase C: 3D 모션 디테일 — 수신자 마중/킥 강도/GK 선방 강화(死코드 수정)/드리블·리액션",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-04T05:13:42.752Z"
+  "updatedAt": "2026-07-04T06:24:36.233Z"
 }

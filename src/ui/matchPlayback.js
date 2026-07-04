@@ -315,10 +315,21 @@ function createPlaybackController(events, refs) {
     }
 
     if (kickerId && (ballState.mode === 'flight' || ballState.mode === 'flightToPoint' || ballState.mode === 'flightCurl')) {
-      backend.applyEventVisual({ kind: 'kick', playerId: kickerId })
-      // 킥음은 롱패스/슛/세트피스만 — 숏패스까지 울리면 스팸(체감 실측 기준).
+      // 킥 강도 차등(실플레이 진단: 숏패스도 큰 발차기라 부자연) — 숏패스=가볍게 툭,
+      // 롱패스/드리블 터치=중간, 슛/롱킥=강하게. 3D가 kickPower로 스윙 크기를 조절한다.
+      const power = event.type === 'pass'
+        ? (event.style === 'short' ? 0.35 : event.style === 'long' ? 1 : 0.6)
+        : (event.type === 'carry' ? 0.3 : 1)
+      backend.applyEventVisual({ kind: 'kick', playerId: kickerId, power })
       if (event.type !== 'pass' || event.style === 'long') matchSound('kick')
     }
+    // 패스 수신자 마중 — flight 동안 볼 쪽으로 살짝 나오고 도착 시 트래핑(볼이 알아서
+    // 발에 붙던 인상 제거). pass/carry/free_kick의 수신 토큰을 볼 궤적 쪽으로 당긴다.
+    const receiverId = event.type === 'pass' ? event.toId
+      : (event.type === 'carry' || event.type === 'clearance' || event.type === 'offside') ? event.actorId
+      : event.type === 'free_kick' ? event.takerId
+      : null
+    if (receiverId) backend.applyEventVisual({ kind: 'receive', playerId: receiverId })
 
     // GK 반응 — 선방(볼 쪽 다이빙)/실점(반대편 헛손질). 볼이 어느 채널로 오는지로 방향.
     if (event.type === 'shot_saved' && event.gkId) {
@@ -353,6 +364,7 @@ function createPlaybackController(events, refs) {
     for (const { r } of pursuers) pullOverrides.set(r.playerId, eventPos)
 
     if (event.type === 'carry') {
+      backend.applyEventVisual({ kind: 'dribble', playerId: event.actorId })
       const carrier = refsById.get(event.actorId)
       const dribbling = carrier?.dribbling ?? 60
       const rouletteTick = (event.chainId * 7 + event.minute) % 4 === 0
