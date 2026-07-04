@@ -166,36 +166,39 @@ function makeStadium(track, scene, teamColors, FIELD_W, FIELD_L) {
   const awayColor = new THREE.Color(tokenOf('--pitch3d-crowd-away'))
   const perStand = 180
   const total = standSpecs.length * perStand
-  const crowdGeo = track(new THREE.BoxGeometry(0.9, 1.4, 0.9))
+  const crowdGeo = track(new THREE.BoxGeometry(1.1, 1.7, 1.1))
   const crowdMat = track(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x111318) }))
   const crowd = new THREE.InstancedMesh(crowdGeo, crowdMat, total)
   crowd.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3)
   const dummy = new THREE.Object3D()
   const crowdMeta = [] // 인스턴스별 {baseY, side} — 웨이브
   let idx = 0
+  // 계단 윗면 y = 1.5 + tier*2.4 + 1.5(박스 절반) = [3.0, 5.4, 7.8]. 관중은 각 계단
+  // 윗면 위에 앉힌다(파묻힘 방지 — 이전엔 연속 램프가 이산 계단 박스 속으로 파고들었다).
+  const TIER_TOP_Y = [3.0 + 0.9, 5.4 + 0.9, 7.8 + 0.9] // 박스 top + 관중 높이 절반
+  const perTier = Math.ceil(perStand / TIERS)
   for (const spec of standSpecs) {
     const home = isHomeSide(spec)
     const spanLong = spec.long ? FIELD_W + 34 : FIELD_L + 12
-    const cols = 30
-    const rows = Math.ceil(perStand / cols)
-    for (let i = 0; i < perStand; i++) {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      const alongT = (col / (cols - 1) - 0.5) * spanLong
-      const tierT = row / rows
-      const outward = spec.dir * (tierT * 13)
-      const y = 3.2 + tierT * 7
-      if (spec.long) dummy.position.set(alongT, y, spec.z + outward + spec.dir * 3)
-      else dummy.position.set(spec.x + outward + spec.dir * 3, y, alongT)
-      dummy.rotation.set(0, 0, 0)
-      dummy.updateMatrix()
-      crowd.setMatrixAt(idx, dummy.matrix)
-      const c = home ? homeColor : awayColor
-      // 좌석 간 색 편차(응원 물결 느낌) — 결정론 지터.
-      const jitter = 0.72 + ((idx * 2654435761) % 100) / 360
-      crowd.setColorAt(idx, c.clone().multiplyScalar(jitter))
-      crowdMeta.push({ baseY: y, home })
-      idx++
+    const seatCols = Math.ceil(perTier / 1) // 한 계단에 perTier명을 한 줄로
+    for (let tier = 0; tier < TIERS; tier++) {
+      const y = TIER_TOP_Y[tier]
+      const stepZ = spec.z !== undefined ? spec.z + spec.dir * (tier * 5) : undefined
+      const stepX = spec.x !== undefined ? spec.x + spec.dir * (tier * 5) : undefined
+      for (let s = 0; s < perTier; s++) {
+        if (idx >= total) break
+        const alongT = (s / (seatCols - 1) - 0.5) * spanLong
+        if (spec.long) dummy.position.set(alongT, y, stepZ)
+        else dummy.position.set(stepX, y, alongT)
+        dummy.rotation.set(0, 0, 0)
+        dummy.updateMatrix()
+        crowd.setMatrixAt(idx, dummy.matrix)
+        const c = home ? homeColor : awayColor
+        const jitter = 0.72 + ((idx * 2654435761) % 100) / 360
+        crowd.setColorAt(idx, c.clone().multiplyScalar(jitter))
+        crowdMeta.push({ baseY: y, home })
+        idx++
+      }
     }
   }
   crowd.instanceMatrix.needsUpdate = true
@@ -210,6 +213,7 @@ function makeStadium(track, scene, teamColors, FIELD_W, FIELD_L) {
   const cornerX = FIELD_W / 2 + 24
   const cornerZ = FIELD_L / 2 + 20
   const towerHeads = []
+  const spots = []
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     const tower = new THREE.Mesh(towerGeo, towerMat)
     tower.position.set(sx * cornerX, 17, sz * cornerZ)
@@ -219,6 +223,13 @@ function makeStadium(track, scene, teamColors, FIELD_W, FIELD_L) {
     head.lookAt(0, 0, 0)
     scene.add(head)
     towerHeads.push(head)
+    // 실광원 — 야간에 피치로 쏘는 스포트라이트(주간엔 intensity 0).
+    const spot = new THREE.SpotLight(tokenOf('--pitch3d-floodlight'), 0, 320, Math.PI / 4, 0.5, 1)
+    spot.position.set(sx * cornerX, 33, sz * cornerZ)
+    spot.target.position.set(sx * 12, 0, sz * 18)
+    scene.add(spot)
+    scene.add(spot.target)
+    spots.push(spot)
   }
 
   // 전광판 — 한쪽 스탠드 위 큰 판. 캔버스 텍스처로 스코어/분 미러.
@@ -250,7 +261,7 @@ function makeStadium(track, scene, teamColors, FIELD_W, FIELD_L) {
 
   return {
     crowd, crowdMeta,
-    towerHeads, lightMat,
+    towerHeads, lightMat, spots,
     drawBoard,
     lastBoard: '',
   }
@@ -429,14 +440,25 @@ export function createThreePitchBackend() {
     if (!scene) return
     if (night) {
       scene.background = new THREE.Color(tokenOf('--pitch3d-night-sky'))
-      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-night-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-night-ground')); hemiLight.intensity = 0.55 }
-      if (sunLight) sunLight.intensity = 0.7
-      if (stadium) stadium.lightMat.color.set(tokenOf('--pitch3d-floodlight'))
+      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-night-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-night-ground')); hemiLight.intensity = 0.4 }
+      if (sunLight) sunLight.intensity = 0.35 // 달빛 — 조명탑 스포트라이트에 의존
+      if (stadium) {
+        stadium.lightMat.color.set(tokenOf('--pitch3d-floodlight'))
+        stadium.lightMat.emissive?.set?.(tokenOf('--pitch3d-floodlight'))
+        for (const sp of stadium.spots) sp.intensity = 1.5 // 조명탑 켜짐
+      }
     } else {
-      scene.background = new THREE.Color(tokenOf('--bg-primary', 'black'))
-      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-ground')); hemiLight.intensity = 1.15 }
-      if (sunLight) sunLight.intensity = 1.4
+      // 주간 — 밝은 하늘(near-black이던 것을 실제 낮으로).
+      scene.background = new THREE.Color(tokenOf('--pitch3d-day-sky'))
+      if (hemiLight) { hemiLight.color.set(tokenOf('--pitch3d-day-sky')); hemiLight.groundColor.set(tokenOf('--pitch3d-ground')); hemiLight.intensity = 1.3 }
+      if (sunLight) sunLight.intensity = 1.5
+      if (stadium) {
+        stadium.lightMat.color.set(tokenOf('--pitch3d-tower')) // 낮엔 조명탑 꺼짐(어둡게)
+        for (const sp of stadium.spots) sp.intensity = 0 // 스포트라이트 off
+      }
     }
+    // idle(킥오프 전)엔 rAF 루프가 없어 render가 안 불린다 — 토글 즉시 1회 그린다.
+    if (renderer && scene && camera) renderer.render(scene, camera)
   }
 
   return {
@@ -486,6 +508,8 @@ export function createThreePitchBackend() {
         scene.add(rig)
         rigById.set(token.playerId, rig)
       }
+
+      applyLighting() // 초기 주간 조명(밝은 하늘) 즉시 적용
 
       const ballMat = track(new THREE.MeshLambertMaterial({
         color: tokenOf('--pitch3d-ball'),
@@ -560,6 +584,13 @@ export function createThreePitchBackend() {
           u.armL.rotation.x = Math.PI * 0.9
           u.armR.rotation.x = Math.PI * 0.9
           if (dtMs > 0) u.celebrateT *= Math.exp(-dtMs / 700)
+          if (u.celebrateT < 0.05) {
+            // 셀레머니 종료 — 팔 각도를 명시적으로 놓아준다(루프가 죽어도 고착 안 됨).
+            u.celebrateT = 0
+            u.armL.rotation.x = 0
+            u.armR.rotation.x = 0
+            rig.position.y = 0
+          }
         } else if (rig.position.y !== 0) {
           rig.position.y = 0
         }

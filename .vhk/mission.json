@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "objective": "goal 21: 사운드 — Freesound CC0 에셋(실제 경기장 녹음) + WebAudio 레이어링(베드 루프/이벤트 원샷/골 스파이크) + 매치 훅 + 사운드 토글",
+  "objective": "goal 23-1단계: 셀레머니 손 고착/관중 파묻힘 버그 + 속도(0.5x+delay 상향)/주야간 명확화 튜닝",
   "scope": [
     "src/**",
     "tests/**",
@@ -13,5 +13,5 @@
     "src/data/players.db.js"
   ],
   "createdAt": "2026-07-02T11:18:49.253Z",
-  "updatedAt": "2026-07-04T03:40:37.869Z"
+  "updatedAt": "2026-07-04T05:01:37.900Z"
 }

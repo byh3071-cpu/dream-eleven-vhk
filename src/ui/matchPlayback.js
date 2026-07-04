@@ -48,13 +48,14 @@ function eventPosition(event) {
 }
 
 // 이벤트별 페이싱. 볼 비행시간은 FLIGHT_RATIO배로 잡아 "이동 완료 후 다음 이벤트" 보장.
+// x1 기본 체감 완화(사용자 확정: 숏패스 260→340 등 ~1.25배 — 초당 이벤트 수 감소).
 const DELAY_MS = {
-  pass: 420, carry: 700, turnover_buildup: 550,
-  shot_saved: 700, shot_off_target: 700, goal: 1500,
-  foul: 700, free_kick: 850, corner_kick: 900, clearance: 650, offside: 800,
-  yellow_card: 950, red_card: 1200, penalty_awarded: 1200,
+  pass: 520, carry: 820, turnover_buildup: 660,
+  shot_saved: 820, shot_off_target: 820, goal: 1600,
+  foul: 820, free_kick: 950, corner_kick: 1000, clearance: 760, offside: 900,
+  yellow_card: 1050, red_card: 1300, penalty_awarded: 1300,
 }
-const SHORT_PASS_DELAY_MS = 260
+const SHORT_PASS_DELAY_MS = 340
 const FLIGHT_RATIO = 0.72
 const CARRY_TRANSFER_MS = 160
 
@@ -363,10 +364,14 @@ function createPlaybackController(events, refs) {
         else score.away++
         scoreEl.textContent = `${score.home} - ${score.away}`
       }
-      celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
-      backend.applyEventVisual({ kind: 'celebrate', playerId: event.actorId })
+      // 셀레브레이션(카메라 줌·만세·관중 웨이브)은 본 재생에서만 — 리플레이(visualOnly)가
+      // 재점화하면 팔 만세가 루프 정지 시 고착되던 버그의 방아쇠였다.
+      if (!visualOnly) {
+        celebration = { team: event.team, scorerId: event.actorId, remainingMs: 1400 }
+        backend.applyEventVisual({ kind: 'celebrate', playerId: event.actorId })
+        matchSound('goal', { homeSide: event.team === 'A' })
+      }
       backend.applyEventVisual({ kind: 'flash', variant: 'goal', text: 'GOAL!' })
-      if (!visualOnly) matchSound('goal', { homeSide: event.team === 'A' })
     } else if (event.type === 'yellow_card') {
       backend.applyEventVisual({ kind: 'flash', variant: 'yellow', text: '' })
       matchSound('card')
@@ -532,7 +537,7 @@ function renderControls(onKickoff, onTogglePause, onSetSpeed, onSkip) {
 
   const speedWrap = document.createElement('div')
   speedWrap.className = 'match__speed-group'
-  const speedButtons = [1, 2, 4].map((s) => {
+  const speedButtons = [0.5, 1, 2, 4].map((s) => {
     const b = document.createElement('button')
     b.type = 'button'
     b.className = 'chip' + (s === 1 ? ' chip--active' : '')
