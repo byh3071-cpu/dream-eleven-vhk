@@ -181,11 +181,13 @@ function createPlaybackController(events, refs) {
     // - GK(골문 앞 고정 — 세트피스로 박스에 몰린 선수들과 반발하면 부르르 떨림. 계측으로
     //   확인: 코너 경기에서 양 팀 GK가 진동 top이었다)
     // - 세트피스 쇄도 선수(strongPullIds — 박스 밀집은 의도된 대형이라 서로 밀치면 안 됨)
+    // 완전 제외(반발 소스도 대상도 아님): 홀더(볼 지터 방지), 셀레머니 군집·세트피스 쇄도
+    // (의도된 몰림). GK는 여기서 제외하지 않는다 — GK는 반발 "소스"로 남겨 상대 공격수를
+    // 밀어낸다(안 그러면 공격수가 골키퍼를 뚫고 지나간다). GK 자신은 아래 push 가드로
+    // 안 밀린다(골문 앞 앵커 유지 — 진동은 이미 GK target 앵커가 막는다).
     const skip = (ref) => ref.playerId === holderId
-      || ref.isGK
       || strongPullIds.has(ref.playerId)
       || (inCelebration && ref.team === celebration.team)
-    // 이번 프레임 반발 합을 먼저 모은다(적용은 EMA 스무딩 후 — 아래).
     const push = steeringRefs.map(() => ({ left: 0, top: 0 }))
     for (let i = 0; i < steeringRefs.length; i++) {
       if (skip(steeringRefs[i])) continue
@@ -198,10 +200,9 @@ function createPlaybackController(events, refs) {
           const force = SEP_STRENGTH * (1 - d / SEP_RANGE) // 거리 반비례 연속
           const nx = dx / d
           const ny = dy / d
-          push[i].left -= nx * force
-          push[i].top -= ny * force
-          push[j].left += nx * force
-          push[j].top += ny * force
+          // GK는 밀리지 않는다(앵커) — 상대만 GK로부터 밀려나 통과가 막힌다.
+          if (!steeringRefs[i].isGK) { push[i].left -= nx * force; push[i].top -= ny * force }
+          if (!steeringRefs[j].isGK) { push[j].left += nx * force; push[j].top += ny * force }
         }
       }
     }
