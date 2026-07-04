@@ -176,28 +176,44 @@ function createPlaybackController(events, refs) {
   // 스프링이 부드럽게 수렴하게 한다. 거리 반비례라 안정 평형점이 생겨 flicker가 없다.
   function separateTargets(targets, holderId) {
     const inCelebration = celebration !== null
-    const skip = (ref) => ref.playerId === holderId || (inCelebration && ref.team === celebration.team)
+    // 반발 제외 대상:
+    // - 홀더(볼 지터 방지), 셀레머니 군집(의도된 몰림)
+    // - GK(골문 앞 고정 — 세트피스로 박스에 몰린 선수들과 반발하면 부르르 떨림. 계측으로
+    //   확인: 코너 경기에서 양 팀 GK가 진동 top이었다)
+    // - 세트피스 쇄도 선수(strongPullIds — 박스 밀집은 의도된 대형이라 서로 밀치면 안 됨)
+    const skip = (ref) => ref.playerId === holderId
+      || ref.isGK
+      || strongPullIds.has(ref.playerId)
+      || (inCelebration && ref.team === celebration.team)
+    // 이번 프레임 반발 합을 먼저 모은다(적용은 EMA 스무딩 후 — 아래).
+    const push = steeringRefs.map(() => ({ left: 0, top: 0 }))
     for (let i = 0; i < steeringRefs.length; i++) {
-      const a = steeringRefs[i]
-      if (skip(a)) continue
+      if (skip(steeringRefs[i])) continue
       for (let j = i + 1; j < steeringRefs.length; j++) {
-        const b = steeringRefs[j]
-        if (skip(b)) continue
-        // current 기준 근접 판정(실제 겹침) → 목표를 벌린다.
-        const dx = b.current.left - a.current.left
-        const dy = b.current.top - a.current.top
+        if (skip(steeringRefs[j])) continue
+        const dx = steeringRefs[j].current.left - steeringRefs[i].current.left
+        const dy = steeringRefs[j].current.top - steeringRefs[i].current.top
         const d = Math.hypot(dx, dy)
         if (d < SEP_RANGE && d > 0.001) {
-          const force = SEP_STRENGTH * (1 - d / SEP_RANGE) // 가까울수록 강, 경계에서 0(연속)
+          const force = SEP_STRENGTH * (1 - d / SEP_RANGE) // 거리 반비례 연속
           const nx = dx / d
           const ny = dy / d
-          targets[i].left -= nx * force
-          targets[i].top -= ny * force
-          targets[j].left += nx * force
-          targets[j].top += ny * force
+          push[i].left -= nx * force
+          push[i].top -= ny * force
+          push[j].left += nx * force
+          push[j].top += ny * force
         }
       }
     }
+    // 저역통과 필터(EMA) — 3명+ 밀집이면 반발이 A↔B↔C 순환하며 진동하는데(리밋사이클),
+    // 프레임간 스무딩으로 고주파 떨림을 걸러 안정값으로 수렴시킨다("부르르 떨림" 제거).
+    steeringRefs.forEach((ref, idx) => {
+      const prev = ref.sepPrev ?? { left: 0, top: 0 }
+      const sm = { left: prev.left * 0.6 + push[idx].left * 0.4, top: prev.top * 0.6 + push[idx].top * 0.4 }
+      ref.sepPrev = sm
+      targets[idx].left += sm.left
+      targets[idx].top += sm.top
+    })
   }
 
   function syncFrame(dtMs = 0) {
@@ -250,9 +266,16 @@ function createPlaybackController(events, refs) {
         return { ...scorerRef.current }
       }
       const override = pullOverrides.get(ref.playerId)
-      let target = override
-        ? computeOverrideTarget(ref.basePos, override, strongPullIds.has(ref.playerId) ? 70 : undefined)
-        : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
+      let target
+      if (override) {
+        target = computeOverrideTarget(ref.basePos, override, strongPullIds.has(ref.playerId) ? 70 : undefined)
+      } else if (ref.isGK) {
+        // GK는 골문 앞 — 볼의 좌우 각도만 완만히 커버하고 전후(top)는 고정한다. 필드 스티어링
+        // (라인시프트/볼쏠림)을 그대로 받으면 볼이 오갈 때마다 골문 앞에서 부르르 떤다(계측:
+        // GK가 진동 top에 반복 등장). 골키퍼는 자리를 지키는 게 자연스럽다.
+        target = { left: ref.basePos.left + (ballScreenPos.left - 50) * 0.12, top: ref.basePos.top }
+      } else {
+        target = computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
           supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
           penetrate: ref.playerId === penetratorId,
           overlap: ref.team === possessionTeam && !ref.isGK
@@ -260,6 +283,7 @@ function createPlaybackController(events, refs) {
             && (ref.basePos.left < 32 || ref.basePos.left > 68)
             && Math.abs(ballScreenPos.left - ref.basePos.left) < 30,
         })
+      }
       target = {
         left: target.left + Math.sin(now / 1600 + ref.idlePhase) * 0.2,
         top: target.top + Math.cos(now / 1900 + ref.idlePhase) * 0.18,
