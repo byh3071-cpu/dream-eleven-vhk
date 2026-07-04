@@ -19,7 +19,7 @@ import { spawnMiniPop, spawnFlash } from './pitchOverlayFx.js'
 const FIELD_W = 68
 const FIELD_L = 100
 const BALL_ARC_HEIGHT = 7
-const BALL_R = 1.15
+const BALL_R = 0.78
 
 // 휴머노이드 치수(로우폴리 — 필드 스케일 대비 과장된 머리/컬러 블록 미학)
 const LEG_LEN = 1.5

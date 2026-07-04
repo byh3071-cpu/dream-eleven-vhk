@@ -56,7 +56,7 @@ const DELAY_MS = {
   yellow_card: 1050, red_card: 1300, penalty_awarded: 1300,
 }
 const SHORT_PASS_DELAY_MS = 340
-const FLIGHT_RATIO = 0.72
+const FLIGHT_RATIO = 0.88
 const CARRY_TRANSFER_MS = 160
 
 function delayFor(event) {
@@ -169,31 +169,32 @@ function createPlaybackController(events, refs) {
     }
   }
 
-  const SEP_MIN = 4.4 // % — 이보다 가까우면 서로 밀어냄
-  const SEP_PUSH = 0.5
+  const SEP_RANGE = 5.2 // % — 이 범위 안에서 거리 반비례 연속 반발(하드 임계 없음)
+  const SEP_STRENGTH = 2.6 // 목표를 밀어내는 최대 세기(d→0일 때)
 
-  function separatePlayers() {
-    const holderId = ballState.mode === 'held' ? ballState.holderId : null
+  // 연속 반발을 목표 지점에 적용 — current 직접 수정(톱니 진동)이 아니라 목표를 벌려
+  // 스프링이 부드럽게 수렴하게 한다. 거리 반비례라 안정 평형점이 생겨 flicker가 없다.
+  function separateTargets(targets, holderId) {
     const inCelebration = celebration !== null
+    const skip = (ref) => ref.playerId === holderId || (inCelebration && ref.team === celebration.team)
     for (let i = 0; i < steeringRefs.length; i++) {
       const a = steeringRefs[i]
-      if (a.playerId === holderId) continue
-      if (inCelebration && a.team === celebration.team) continue
+      if (skip(a)) continue
       for (let j = i + 1; j < steeringRefs.length; j++) {
         const b = steeringRefs[j]
-        if (b.playerId === holderId) continue
-        if (inCelebration && b.team === celebration.team) continue
+        if (skip(b)) continue
+        // current 기준 근접 판정(실제 겹침) → 목표를 벌린다.
         const dx = b.current.left - a.current.left
         const dy = b.current.top - a.current.top
         const d = Math.hypot(dx, dy)
-        if (d < SEP_MIN && d > 0.001) {
-          const push = (SEP_MIN - d) * SEP_PUSH
+        if (d < SEP_RANGE && d > 0.001) {
+          const force = SEP_STRENGTH * (1 - d / SEP_RANGE) // 가까울수록 강, 경계에서 0(연속)
           const nx = dx / d
           const ny = dy / d
-          a.current.left -= nx * push
-          a.current.top -= ny * push
-          b.current.left += nx * push
-          b.current.top += ny * push
+          targets[i].left -= nx * force
+          targets[i].top -= ny * force
+          targets[j].left += nx * force
+          targets[j].top += ny * force
         }
       }
     }
@@ -242,45 +243,54 @@ function createPlaybackController(events, refs) {
       .map((r) => ({ id: r.playerId, adv: possessionTeam === 'A' ? -r.basePos.top : r.basePos.top }))
       .sort((a, b) => b.adv - a.adv)[0]?.id ?? null
 
-    for (const ref of steeringRefs) {
-      let target
+    // 1패스 — 각 선수의 목표 지점 계산(아직 이동 안 함). idle 워블은 약하게(±0.2/0.18)로
+    // 낮춰 "부르르 떨림"을 줄인다(진동 지표 기반 조정).
+    const targets = steeringRefs.map((ref) => {
       if (scorerRef && ref.team === celebration.team && !ref.isGK && ref.playerId !== celebration.scorerId) {
-        target = { ...scorerRef.current }
-      } else {
-        const override = pullOverrides.get(ref.playerId)
-        target = override
-          ? computeOverrideTarget(ref.basePos, override, strongPullIds.has(ref.playerId) ? 70 : undefined)
-          : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
-            supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
-            penetrate: ref.playerId === penetratorId,
-            overlap: ref.team === possessionTeam && !ref.isGK
-              && (ref.team === 'A' ? ref.basePos.top > 66 : ref.basePos.top < 34)
-              && (ref.basePos.left < 32 || ref.basePos.left > 68)
-              && Math.abs(ballScreenPos.left - ref.basePos.left) < 30,
-          })
-        target = {
-          left: target.left + Math.sin(now / 1100 + ref.idlePhase) * 0.35,
-          top: target.top + Math.cos(now / 1450 + ref.idlePhase) * 0.3,
-        }
-        if (activeFlair?.type === 'weave' && activeFlair.actorId === ref.playerId) {
-          const dx = target.left - ref.current.left
-          const dy = target.top - ref.current.top
-          const len = Math.hypot(dx, dy) || 1
-          const wobble = Math.sin(activeFlair.elapsedMs / 70) * activeFlair.amp
-          target = { left: target.left + (-dy / len) * wobble, top: target.top + (dx / len) * wobble }
-        }
+        return { ...scorerRef.current }
       }
+      const override = pullOverrides.get(ref.playerId)
+      let target = override
+        ? computeOverrideTarget(ref.basePos, override, strongPullIds.has(ref.playerId) ? 70 : undefined)
+        : computeFlexTarget(ref.basePos, ballScreenPos, ref.team, ref.team === possessionTeam, {
+          supportRank: supportIds.indexOf(ref.playerId) === -1 ? null : supportIds.indexOf(ref.playerId),
+          penetrate: ref.playerId === penetratorId,
+          overlap: ref.team === possessionTeam && !ref.isGK
+            && (ref.team === 'A' ? ref.basePos.top > 66 : ref.basePos.top < 34)
+            && (ref.basePos.left < 32 || ref.basePos.left > 68)
+            && Math.abs(ballScreenPos.left - ref.basePos.left) < 30,
+        })
+      target = {
+        left: target.left + Math.sin(now / 1600 + ref.idlePhase) * 0.2,
+        top: target.top + Math.cos(now / 1900 + ref.idlePhase) * 0.18,
+      }
+      if (activeFlair?.type === 'weave' && activeFlair.actorId === ref.playerId) {
+        const dx = target.left - ref.current.left
+        const dy = target.top - ref.current.top
+        const len = Math.hypot(dx, dy) || 1
+        const wobble = Math.sin(activeFlair.elapsedMs / 70) * activeFlair.amp
+        target = { left: target.left + (-dy / len) * wobble, top: target.top + (dx / len) * wobble }
+      }
+      return target
+    })
+
+    // 충돌 회피(separation) — 연속 반발을 **목표 지점**에 적용한다. 이전엔 current를 직접
+    // 밀어 velocity와 불일치 → 스프링이 당기고 반발이 밀고 하는 톱니 진동("부르르 떨림",
+    // ablation으로 반전 9.5→4.8 확인). 목표에 걸면 스프링이 밀린 목표로 임계감쇠 수렴하고,
+    // on/off 하드 임계 대신 거리 반비례 연속 힘이라 flicker가 원천 소거된다(advisor 권장).
+    // 볼 홀더·셀레머니 군집은 제외(홀더는 볼 지터 방지, 셀레머니는 의도된 몰림).
+    separateTargets(targets, holderId)
+
+    // 2패스 — 목표로 스프링 이동.
+    steeringRefs.forEach((ref, idx) => {
+      const target = targets[idx]
       for (let s = 0; s < substeps; s++) {
         const result = springStep(ref.current, ref.velocity, target, ref.pace, subDt, speed)
         ref.current = result.current
         ref.velocity = result.velocity
       }
-    }
+    })
 
-    // 충돌 회피(separation) — 근접 두 토큰을 최소거리로 밀어낸다(양팀 겹침·라벨 포갬 해소).
-    // syncFrame 이전이라 홀더를 밀어도 볼이 다시 붙는다(anti-float held 불변식 안전). 홀더는
-    // 볼 지터 방지로, 셀레머니 군집은 의도된 몰림이라 제외. 231쌍/프레임은 성능 무시 가능.
-    separatePlayers()
     ballState = advanceBall(ballState, frameMs)
     syncFrame(frameMs)
     activeRafId = requestAnimationFrame(stepFrame)

@@ -36,8 +36,8 @@
 
 .match__ball {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--radius-circle);
   background: var(--accent-gold-bright);
   box-shadow: var(--shadow-glow-gold);
