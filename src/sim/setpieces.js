@@ -103,10 +103,15 @@ export function resolveCorner({ possessing, defending, channel, rng }) {
 
 // 페널티킥: 기본 0.75, 키커 슈팅/GK 수비로 미세 보정 후 클램프.
 export function resolvePenalty({ shooter, gk, possessing, defending, rng }) {
+  // composure 특성이 여기서 발동(ADR-001) — 압박의 정점인 PK 전환율에 successBonus를 가산한다.
+  // 클램프 안쪽이라 PK_MAX가 상한을 유지하고, applyTraitHooks는 rng를 소비하지 않아 draw 수·핀
+  // 구조는 불변(특성 없는 선수는 successBonus 0 → 기존 결과 비트 동일).
+  const mods = applyTraitHooks(shooter.player, 'onSetPiece', { setPieceType: 'penalty' })
   const chance = Math.min(TUNABLES.PK_MAX, Math.max(TUNABLES.PK_MIN,
     TUNABLES.PK_BASE
     + (shooter.player.stats.shooting * staminaFactor(possessing.stamina, shooter.player.id) - 75) * 0.002
-    - (gk.player.stats.defending * staminaFactor(defending.stamina, gk.player.id) - 75) * 0.002,
+    - (gk.player.stats.defending * staminaFactor(defending.stamina, gk.player.id) - 75) * 0.002
+    + (mods.successBonus ?? 0),
   ))
   return rollSuccess(rng, chance) ? 'goal' : 'shot_saved'
 }

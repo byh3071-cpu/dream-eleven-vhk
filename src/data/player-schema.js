@@ -18,6 +18,7 @@ export const TRAIT_KEYS = Object.freeze([
   'dribbler',
   'veteran_declining',
   'tackle_specialist',
+  'composure',
 ])
 
 export const ERAS = Object.freeze(['legend', 'active'])

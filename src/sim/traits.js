@@ -33,6 +33,13 @@ export const TRAIT_HOOKS = {
   tackle_specialist: {
     onDuel: (player, ctx) => (ctx.role === 'defend' ? { scoreMult: 1.12 } : null),
   },
+  // 침착함(composure) — 압박의 정점인 페널티킥에서 발동(ADR-001의 첫 슬라이스). resolvePenalty
+  // (setpieces.js)의 onSetPiece 훅이 successBonus를 전환 확률에 가산한다. 오픈플레이 슛
+  // accuracyMult는 poacher가, progression scoreMult는 playmaker_vision/dribbler가 이미 점유 →
+  // 중복을 피해 훅이 비어 있던 PK 경로를 택했다.
+  composure: {
+    onSetPiece: (player, ctx) => (ctx.setPieceType === 'penalty' ? { successBonus: 0.08 } : null),
+  },
 }
 
 function mergeModifiers(a, b) {
