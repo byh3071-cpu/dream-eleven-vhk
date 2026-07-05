@@ -53,8 +53,30 @@ function buildSide(roster, rosterMap, formationId) {
   }
 }
 
-// 한 시즌 전체 시뮬 → { rosters, fixtures(+result), table }. 순수·결정론.
-// fixture 시드는 로스터 시드와 범위가 겹치지 않게 큰 오프셋으로 파생.
+// fixtures 배열의 각 경기를 시뮬해 result를 채운다(제자리 변경). seedBase로 시드 범위 분리.
+function playFixtures(fixtures, rosters, rosterMap, formationId, seed, seedBase) {
+  fixtures.forEach((fx, i) => {
+    const home = buildSide(rosters[fx.homeClubId], rosterMap, formationId)
+    const away = buildSide(rosters[fx.awayClubId], rosterMap, formationId)
+    if (!home || !away) return
+    const result = simulateMatch({ home, away, seed: deriveSeed(seed, seedBase + i) })
+    fx.result = { homeGoals: result.score.home, awayGoals: result.score.away }
+  })
+}
+
+// 스플릿 최종 순위: 파이널A(상위 그룹) 전원이 파이널B 위에 고정, 그룹 내는 전체 승점순
+// (정규+스플릿 누적). 한국 K리그 스플릿 규약.
+function splitFinalTable(clubIds, allFixtures, groupA, groupB) {
+  const full = computeTable(clubIds, allFixtures)
+  const byId = Object.fromEntries(full.map((r) => [r.clubId, r]))
+  const rank = Object.fromEntries(full.map((r, i) => [r.clubId, i]))
+  const sortByRank = (ids) => ids.map((id) => byId[id]).sort((a, b) => rank[a.clubId] - rank[b.clubId])
+  return [...sortByRank(groupA), ...sortByRank(groupB)]
+}
+
+// 한 시즌 전체 시뮬 → { rosters, fixtures(+result·phase), table }. 순수·결정론.
+// 반환 계약 고정: {rosters, fixtures, table}. 스플릿도 이 형태 안에서(fixtures에 phase 태그,
+// table은 최종 순위) — 세이브/대륙컵이 이 계약에 의존하므로 형태를 바꾸지 않는다(advisor).
 export function simulateWorldSeason(league, seed, { formationId = '4-4-2' } = {}) {
   const clubIds = leagueClubIds(league)
   const rosters = Object.fromEntries(clubIds.map((id) => [id, generateRoster(id, seed)]))
@@ -62,13 +84,24 @@ export function simulateWorldSeason(league, seed, { formationId = '4-4-2' } = {}
   for (const id of clubIds) for (const p of rosters[id]) rosterMap[p.id] = p
 
   const fixtures = generateFixtures(clubIds, { rounds: league.rounds })
-  fixtures.forEach((fx, i) => {
-    const home = buildSide(rosters[fx.homeClubId], rosterMap, formationId)
-    const away = buildSide(rosters[fx.awayClubId], rosterMap, formationId)
-    if (!home || !away) return
-    const result = simulateMatch({ home, away, seed: deriveSeed(seed, 1_000_000 + i) })
-    fx.result = { homeGoals: result.score.home, awayGoals: result.score.away }
-  })
+  fixtures.forEach((f) => { f.phase = 'regular' })
+  playFixtures(fixtures, rosters, rosterMap, formationId, seed, 1_000_000)
+
+  // 한국식 스플릿: 정규 라운드 후 상·하위 그룹 분할 → 각 그룹 내 라운드로빈(승점 승계).
+  if (league.split) {
+    const size = league.split.groupSize
+    const ranked = computeTable(clubIds, fixtures).map((r) => r.clubId)
+    const groupA = ranked.slice(0, size)
+    const groupB = ranked.slice(size)
+    const roundOffset = (clubIds.length - 1) * league.rounds
+    const splitFx = [
+      ...generateFixtures(groupA, { rounds: 1 }).map((f) => ({ ...f, round: f.round + roundOffset, phase: 'finalA' })),
+      ...generateFixtures(groupB, { rounds: 1 }).map((f) => ({ ...f, round: f.round + roundOffset, phase: 'finalB' })),
+    ]
+    playFixtures(splitFx, rosters, rosterMap, formationId, seed, 2_000_000)
+    fixtures.push(...splitFx)
+    return { rosters, fixtures, table: splitFinalTable(clubIds, fixtures, groupA, groupB) }
+  }
 
   return { rosters, fixtures, table: computeTable(clubIds, fixtures) }
 }
