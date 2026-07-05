@@ -42,7 +42,10 @@ export function potentialOf(player) {
 // base(원본 불변)에 시즌 경과분 에이징을 적용한 새 객체를 돌려준다.
 export function developPlayer(base, save) {
   const seasonsPassed = (save?.season?.number ?? 1) - 1
-  if (seasonsPassed <= 0) return base
+  // 아바타(frozen)는 경로의존(경기로 큰 값이 진실)이라 시즌 파생 에이징을 통째 우회한다.
+  // dampenPlayer(피로/폼)는 resolve 체인에서 별도 유지되고, 아바타의 나이·쇠퇴는 선수 모드
+  // 성장 스텝이 명시 처리한다(docs/world/PLAYER-MODE-DESIGN.md — frozen은 developPlayer 한정).
+  if (base.frozen || seasonsPassed <= 0) return base
 
   const stats = { ...base.stats }
   const core = POSITION_CORE_STATS[base.positions[0]] ?? ['passing', 'physical']

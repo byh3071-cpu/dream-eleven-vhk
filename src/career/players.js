@@ -16,7 +16,9 @@ export function findCareerPlayer(id) {
 // 에이징(developPlayer — 시즌 파생, 저장 0)을 얹어 돌려준다. 유스 id는 DB에 없으므로
 // 드래프트 문맥(시즌1, CAREER_POOL만) 외의 모든 소비자는 반드시 이걸 써야 한다.
 export function resolveCareerPlayer(save, id) {
-  const base = save?.youthPlayers?.[id] ?? findDbPlayer(id) ?? findFillerPlayer(id)
+  // 선수 모드 아바타(me_)를 최우선 소스로 — 경로의존(경기로 큰 값이 진실)이라 developPlayer의
+  // 시즌 파생 에이징을 우회해야 한다(base.frozen 분기는 development.js). 유스/DB/필러는 종전대로.
+  const base = save?.avatar?.[id] ?? save?.youthPlayers?.[id] ?? findDbPlayer(id) ?? findFillerPlayer(id)
   if (!base) return undefined
   return developPlayer(base, save)
 }
