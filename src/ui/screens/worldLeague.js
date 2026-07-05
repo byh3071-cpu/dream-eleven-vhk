@@ -31,10 +31,10 @@ export function renderWorldLeague(mountEl, params) {
   sub.className = 'world__sub'
   sub.textContent = `${league.country} · 1부 ${league.clubs.length}팀 · ${(league.clubs.length - 1) * league.rounds}R`
 
-  // 리그 탭 (4개국 전환)
+  // 플래그십 4개국 탭(주력) + 전체 39개국 드롭다운
   const tabs = document.createElement('div')
   tabs.className = 'world__tabs'
-  for (const l of LEAGUES) {
+  for (const l of LEAGUES.filter((x) => !x.generated)) {
     const b = document.createElement('button')
     b.type = 'button'
     b.className = 'chip' + (l.id === league.id ? ' chip--active' : '')
@@ -42,6 +42,22 @@ export function renderWorldLeague(mountEl, params) {
     b.addEventListener('click', () => navigate(worldPath(l.id)))
     tabs.appendChild(b)
   }
+  const select = document.createElement('select')
+  select.className = 'world__select'
+  const fgGroup = document.createElement('optgroup')
+  fgGroup.label = '플래그십'
+  const genGroup = document.createElement('optgroup')
+  genGroup.label = '생성 리그 (35개국)'
+  for (const l of LEAGUES) {
+    const opt = document.createElement('option')
+    opt.value = l.id
+    opt.textContent = `${l.name} · ${l.country} (${l.clubs.length}팀)`
+    if (l.id === league.id) opt.selected = true
+    ;(l.generated ? genGroup : fgGroup).appendChild(opt)
+  }
+  select.append(fgGroup, genGroup)
+  select.addEventListener('change', () => navigate(worldPath(select.value)))
+  tabs.appendChild(select)
 
   // 순위표
   const tableEl = document.createElement('table')

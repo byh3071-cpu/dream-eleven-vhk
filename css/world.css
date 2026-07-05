@@ -20,7 +20,18 @@
   display: flex;
   gap: var(--space-8);
   flex-wrap: wrap;
+  align-items: center;
   margin: var(--space-20) 0 var(--space-16);
+}
+.world__select {
+  margin-left: auto;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
 }
 .world__table {
   width: 100%;
