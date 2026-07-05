@@ -10,6 +10,15 @@ import { KOREA_CLUBS } from './data/korea.js'
 import { JAPAN_CLUBS } from './data/japan.js'
 import { ENGLAND_CLUBS } from './data/england.js'
 import { SPAIN_CLUBS } from './data/spain.js'
+import { nationToLeague } from './teamGen.js'
+import { NATIONS_EURO_A } from './data/nations-euro-a.js'
+import { NATIONS_EURO_B } from './data/nations-euro-b.js'
+import { NATIONS_AMERICAS } from './data/nations-americas.js'
+import { NATIONS_AAO } from './data/nations-aao.js'
+
+// 생성 리그 35개국 — 국가 프로필 → teamGen(도시+가상애칭 팀 자동 생성). 고정 시드로 결정론.
+const GEN_SEED = 20260705
+const GEN_NATIONS = [...NATIONS_EURO_A, ...NATIONS_EURO_B, ...NATIONS_AMERICAS, ...NATIONS_AAO]
 
 export const LEAGUES = [
   {
@@ -60,7 +69,8 @@ export const LEAGUES = [
     salaryCap: true,                    // 클럽별 샐러리캡(C-4에서 등록 차단형)
     promotion: 0, relegation: 3,
   },
-  // 35개국은 국가 프로필(리그명·도시풀·강도·스타일) + 생성기로 추가(C-3 후속).
+  // ─── 생성 리그 35개국(국가 프로필 → teamGen, 강도티어 반영) ───
+  ...GEN_NATIONS.map((n) => nationToLeague(n, GEN_SEED)),
 ]
 
 export function findLeague(id) {
