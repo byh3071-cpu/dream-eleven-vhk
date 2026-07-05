@@ -53,6 +53,11 @@ export function generateYouth({ season, index, rng, position: forcedPosition }) 
     stats.shooting = between(rng, 20, 34)
     stats.dribbling = between(rng, 30, 44)
   }
+  // aerial(공중볼) 하위스탯(ADR-001 Step 2) — 6스탯 뒤 마지막 키로 append. physical로 시드하되
+  // rng를 새로 뽑지 않아(생성 스트림 불변) 기존 6스탯·potential·이름 파생이 그대로 유지된다.
+  // 성장 시 applyGrowthStep의 side 루프가 마지막 키 aerial에 별도 draw를 얹어 physical과 점차
+  // 갈라진다(의도). 공중볼 특화(target man) 세대 편성은 후속 튜닝.
+  stats.aerial = stats.physical
 
   const overallNow = playerOverallRating({ positions: [position], stats })
   const potential = Math.min(96, overallNow + between(rng, 8, 25))

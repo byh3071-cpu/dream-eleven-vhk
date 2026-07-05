@@ -67,7 +67,7 @@ export function dampenPlayer(player, playerStates) {
   const formMult = 1 + state.form * FORM_STAT_STEP
   const stats = { ...player.stats }
   for (const key of Object.keys(stats)) {
-    const isPhysical = key === 'pace' || key === 'physical'
+    const isPhysical = key === 'pace' || key === 'physical' || key === 'aerial'
     stats[key] = Math.max(1, stats[key] * (isPhysical ? physicalMult : skillMult) * formMult)
   }
   return { ...player, stats }

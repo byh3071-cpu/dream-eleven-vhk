@@ -14,6 +14,12 @@ import { zoneDistance } from './zones.js'
 import { primaryPosition } from '../data/player-schema.js'
 import { TUNABLES } from './tunables.js'
 
+// aerial(공중볼) 하위스탯(ADR-001 Step 2) — 있으면 그 값, 없으면 physical로 폴백. 기존 선수
+// (DB·구 유스)는 aerial 키가 없어 physical을 읽으므로 공중볼 판정 결과가 비트 동일하게 보존된다.
+function aerialOf(player) {
+  return player.stats.aerial ?? player.stats.physical
+}
+
 function outfieldEntries(squad11) {
   return squad11.filter(({ player }) => !player.positions.includes('GK'))
 }
@@ -28,7 +34,7 @@ function pickAerial(squad11, channel, rng) {
     .map((entry) => ({ entry, distance: zoneDistance(primaryPosition(entry.player), 4, channel) }))
     .sort((a, b) => a.distance - b.distance)
   const pool = ranked.slice(0, 4).map((r) => r.entry)
-  return pickWeighted(rng, pool, (e) => Math.max(1, e.player.stats.physical))
+  return pickWeighted(rng, pool, (e) => Math.max(1, aerialOf(e.player)))
 }
 
 // FK 키커: 슈팅+패스 평균 최고 — 결정론적(rng 불필요), "우리 팀 키커는 정해져 있다".
@@ -50,9 +56,9 @@ export function resolveCross({ possessing, defending, channel, rng }) {
   const attackMods = applyTraitHooks(attacker.player, 'onDuel', { duelType: 'aerial', role: 'attack' })
   const defendMods = applyTraitHooks(defender.player, 'onDuel', { duelType: 'aerial', role: 'defend' })
 
-  const attackScore = attacker.player.stats.physical
+  const attackScore = aerialOf(attacker.player)
     * staminaFactor(possessing.stamina, attacker.player.id) * (attackMods.scoreMult ?? 1)
-  const defendScore = defender.player.stats.physical
+  const defendScore = aerialOf(defender.player)
     * staminaFactor(defending.stamina, defender.player.id) * (defendMods.scoreMult ?? 1)
 
   const duelChance = successChance(attackScore, defendScore, TUNABLES.AERIAL_DIVISOR)

@@ -100,4 +100,42 @@ describe('setpieces — 실호출 경로', () => {
     const squad = base.squad11
     expect(freeKickTaker(squad)).toBe(freeKickTaker(squad))
   })
+
+  // ADR-001 Step 2 — aerial 서브스탯이 실호출 경로에서 실제 소비되는지 + 폴백 검증.
+  test('aerial 서브스탯이 resolveCross 공중볼 판정을 좌우한다 (physical 고정, aerial만 변경)', () => {
+    const withAerial = (aerial) => ctxOf({
+      squad11: makeSyntheticTeam(75).squad11.map((e) => ({
+        ...e,
+        player: e.player.positions.includes('GK')
+          ? e.player
+          : { ...e.player, stats: { ...e.player.stats, aerial } },
+      })),
+    })
+    const winsOf = (possessing) => {
+      const defending = ctxOf(makeSyntheticTeam(75))
+      const rng = createRng(7)
+      let wins = 0
+      for (let i = 0; i < 600; i++) {
+        if (resolveCross({ possessing, defending, channel: 'CENTER', rng }).result !== 'clearance') wins++
+      }
+      return wins
+    }
+    // physical=75로 동일한데 aerial만 90 vs 55 → 판정이 aerial을 읽어야만 승률이 갈린다.
+    expect(winsOf(withAerial(90))).toBeGreaterThan(winsOf(withAerial(55)) * 1.1)
+  })
+
+  test('aerial 미지정은 physical로 폴백 — 기존 데이터(DB·구 유스) 결과 비트 동일', () => {
+    const noAerial = ctxOf(makeSyntheticTeam(75)) // aerial 키 없음 → physical 75
+    const explicit = ctxOf({
+      squad11: makeSyntheticTeam(75).squad11.map((e) => ({
+        ...e, player: { ...e.player, stats: { ...e.player.stats, aerial: 75 } },
+      })),
+    })
+    const seq = (possessing, rng) => {
+      const defending = ctxOf(makeSyntheticTeam(75))
+      return Array.from({ length: 200 }, () =>
+        resolveCross({ possessing, defending, channel: 'CENTER', rng }).result)
+    }
+    expect(seq(noAerial, createRng(11))).toEqual(seq(explicit, createRng(11)))
+  })
 })

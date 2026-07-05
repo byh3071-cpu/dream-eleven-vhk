@@ -239,7 +239,7 @@ defending*0.85+physical*0.15`). 별도 GK 스탯 없음 → 확장 논의에서 
 |---|---|---|---|
 | **0. 규칙 ADR** ✅ 완료 | "새 스탯은 그걸 읽는 판정과 **같은 슬라이스**에서만 추가 + 엔진 변경 슬라이스는 genVersion 동결" 확정 | **`docs/adr/ADR-001`**(accepted) | 아래 전부의 전제. 없으면 장식 스탯·빅뱅으로 샌다 |
 | **1. traits 확장** ✅ 첫 삽 완료 | `composure` 특성 = 기존 훅에 식 1줄. **PK successBonus로 배선**(오픈플레이 슛 accuracyMult는 poacher가, progression scoreMult는 playmaker/dribbler가 이미 점유 → 중복 회피로 빈 PK 경로 선택) | `traits.js` `TRAIT_HOOKS`, `player-schema.js` `TRAIT_KEYS`, `setpieces.js` `resolvePenalty` | 리스크 0(stats 스키마·마이그레이션 불변, 기존 결과 비트 동일). 단위+소비 테스트 2종 추가, 316 green |
-| **2. 첫 판정 심화(파일럿)** | 어느 판정? → **공중볼(aerial)** 추천 | `setpieces.js` 공중볼 판정(현재 `physical`만 읽음) → 새 `aerial` 하위스탯으로 교체 + 마이그레이션 + 동결 | 공중볼은 `setpieces.js`(크로스·코너)에만 있고 `physical` 단일 입력이라 **블라스트 반경 최소**(`duelType 'aerial'`·`aerial_threat` 이미 존재). B2 기계장치(진실 하위스탯+롤업+마이그레이션+버전동결+테스트) 전체를 1회 증명 |
+| **2. 첫 판정 심화(파일럿)** ✅ 완료 | 공중볼(aerial) | `setpieces.js`(resolveCross/pickAerial `aerial ?? physical`), `youthGen` seed(=physical·마지막 키), `player-schema` optional 검증, `playerState` 댐프닝 | `physical` 단일 입력이라 블라스트 반경 최소. **optional+폴백**이라 마이그레이션·SCHEMA_VERSION 불필요(구 선수 키 없음→physical→비트 동일). 소비 테스트 2종 + 유스 그로스 게이트 유지. 공중볼 특화 세대 편성은 후속 튜닝 |
 | **3. 롤업 공용화** | 하위스탯→face 6 롤업 공식 규약 | `teamStrength.js` 공용 함수 추출 | 이후 모든 분할이 이 함수 재사용 → 슬라이스가 점점 싸진다 |
 | **4a. 태클/수비위치** | `defending` 분할(tackling / positioning) | `role 'defend'`(이미 있음) | 가치순 반복 |
 | **4b. 결정력/중거리** | `shooting` 분할(finishing / long_range) | `zoneBand 'BOX'`(이미 있음) | 가치순 반복 |
@@ -252,7 +252,7 @@ defending*0.85+physical*0.15`). 별도 GK 스탯 없음 → 확장 논의에서 
 
 **공통 규율(매 슬라이스 체크리스트):**
 1. 세부가 진실, 표시 6은 롤업(**헥사곤 6축 불변**).
-2. 마이그레이션은 부모에서 시드(`aerial ← physical` 등, 롤업 동일 → 구 세이브 안전) + `SCHEMA_VERSION`+1.
+2. 과거 세계 불변은 **수단 무관 목표**: **optional 서브스탯**은 엔진 폴백(`aerial ?? physical`)으로 마이그레이션 없이 달성(구 선수 키 없음), **required 승격**만 부모 시드 마이그레이션+`SCHEMA_VERSION`+1. 어느 쪽이든 stats 새 키는 **마지막에**(applyGrowthStep rng 스트림 보존).
 3. **genVersion 동결**(엔진 바뀌면 경기 결과 바뀌니 과거 세계 재현 보호).
 4. `applyGrowthStep`은 새 키를 side 루프로 자동 +1. 성장 **포커스**로 쓰려면 그 슬라이스에서
    `POSITION_CORE_STATS`에 키 추가.

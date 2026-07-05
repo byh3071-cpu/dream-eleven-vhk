@@ -80,6 +80,11 @@ export function validatePlayer(player) {
         errors.push(`stats.${key}는 1~99 사이 숫자여야 함: ${value}`)
       }
     }
+    // aerial(공중볼): optional 서브스탯(ADR-001). 지정 시 1~99, 없으면 엔진이 physical로 폴백.
+    const aerial = player.stats.aerial
+    if (aerial !== undefined && (typeof aerial !== 'number' || aerial < 1 || aerial > 99)) {
+      errors.push(`stats.aerial은 지정 시 1~99 사이 숫자여야 함: ${aerial}`)
+    }
   }
   if (!Array.isArray(player.traits)) {
     errors.push('traits는 배열이어야 함 (없으면 빈 배열)')
