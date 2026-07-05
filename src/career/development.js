@@ -61,15 +61,9 @@ export function developPlayer(base, save) {
       // 캡을 뚫는 실측 버그가 있었다).
       const overallNow = playerOverallRating({ ...base, stats })
       if (overallNow < potential) {
-        // 성장 속도는 potential 스팬(+8~25)에 맞춘다 — 첫 실측(+1~2/3시즌)은 유망주
-        // 서사가 밋밋했다. 가중 레이팅 기준 시즌당 +2~4 수준.
-        for (const key of core) {
-          stats[key] = Math.min(99, stats[key] + 2 + (rng() < 0.6 ? 1 : 0))
-        }
-        const sideKeys = Object.keys(stats).filter((k) => !core.includes(k))
-        for (const sideKey of sideKeys) {
-          if (rng() < 0.5) stats[sideKey] = Math.min(99, stats[sideKey] + 1)
-        }
+        // 성장 배분은 공용 헬퍼(applyGrowthStep)로 — 시즌 파생(여기)과 선수 모드 아바타(활약
+        // 트리거)가 같은 배분을 공유한다. focusBoost 미지정 = 기존 rng 순서·동작 그대로 보존.
+        Object.assign(stats, applyGrowthStep(stats, core, rng))
       }
     }
 
@@ -85,4 +79,20 @@ export function developPlayer(base, save) {
   }
 
   return { ...base, age: base.age + seasonsPassed, stats }
+}
+
+// 성장 1스텝 배분(순수 함수, rng 주입) — core 주 스탯 +2(+60% 확률 +1), side 각 50% +1.
+// developPlayer(시즌 파생·NPC)와 선수 모드 아바타(활약→성장, docs/world/PLAYER-MODE-DESIGN.md)가
+// 공유한다. 훈련 포커스는 focusBoost로 core 성장 가중(친선 안에서 선택). potential 캡·나이 게이트는
+// 호출부 책임. 아바타는 save-구조 독립 입력만 받으므로 나중 world 포팅이 재배선(재작성 X).
+export function applyGrowthStep(stats, core, rng, { focusBoost = 0 } = {}) {
+  const next = { ...stats }
+  for (const key of core) {
+    next[key] = Math.min(99, next[key] + 2 + focusBoost + (rng() < 0.6 ? 1 : 0))
+  }
+  const sideKeys = Object.keys(next).filter((k) => !core.includes(k))
+  for (const sideKey of sideKeys) {
+    if (rng() < 0.5) next[sideKey] = Math.min(99, next[sideKey] + 1)
+  }
+  return next
 }
