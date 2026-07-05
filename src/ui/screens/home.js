@@ -3,7 +3,7 @@
 // 기능만 꽂기 위함). 세이브가 생기면 라벨이 "이어하기"로 바뀌는 것도 N3에서.
 
 import { navigate } from '../../router.js'
-import { ifSquadPath, ifMatchPath, careerPath } from '../../routes.js'
+import { ifSquadPath, ifMatchPath, careerPath, worldPath } from '../../routes.js'
 import { randomFillBothSquads } from './squadBuilder.js'
 
 function modeTile({ title, description, cta, disabled, onStart, secondary }) {
@@ -71,6 +71,12 @@ export function renderHome(mountEl) {
       description: '가상 리그 4구단이 레전드 풀을 드래프트 — 한 시즌을 지휘하는 감독 모드.',
       cta: '커리어 시작',
       onStart: () => navigate(careerPath()),
+    }),
+    modeTile({
+      title: '월드 리그',
+      description: '한·일·영·스 4개국 84구단이 각자 실제 규칙으로 굴러가는 세계 리그 — 순위표를 본다.',
+      cta: '리그 보기',
+      onStart: () => navigate(worldPath('k_star')),
     }),
   )
 

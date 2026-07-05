@@ -6,6 +6,7 @@ import { renderTactics } from './ui/screens/tactics.js'
 import { renderMatch } from './ui/screens/match.js'
 import { renderResult } from './ui/screens/result.js'
 import { renderStyleguide } from './ui/screens/styleguide.js'
+import { renderWorldLeague } from './ui/screens/worldLeague.js'
 import {
   renderCareerHome, renderCareerSquad, renderCareerTactics,
   renderCareerTable, renderCareerSchedule, renderCareerMatchday,
@@ -31,6 +32,7 @@ registerRoute(ROUTE_PATTERNS.careerRecords, renderCareerRecords)
 registerRoute(ROUTE_PATTERNS.careerTransfer, renderCareerTransfer)
 registerRoute(ROUTE_PATTERNS.careerFinance, renderCareerFinance)
 registerRoute(ROUTE_PATTERNS.careerLegacy, renderCareerLegacy)
+registerRoute(ROUTE_PATTERNS.world, renderWorldLeague)
 registerRoute(ROUTE_PATTERNS.styleguide, renderStyleguide)
 
 startRouter(document.getElementById('app'))

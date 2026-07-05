@@ -1,0 +1,86 @@
+/* 월드 리그 순위표 화면(worldLeague.js). 색 리터럴 금지 — tokens.css var()만(designLint). */
+
+.screen--world {
+  padding: var(--space-24) var(--space-16);
+  max-width: 760px;
+  margin: 0 auto;
+}
+.world__title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+.world__sub {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin: var(--space-4) 0 0;
+}
+.world__tabs {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  margin: var(--space-20) 0 var(--space-16);
+}
+.world__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+.world__table th,
+.world__table td {
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  border-bottom: var(--border-panel);
+}
+.world__table th {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.world__rank {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.world__name {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.world__pts {
+  font-weight: 800;
+  color: var(--accent-gold);
+  font-variant-numeric: tabular-nums;
+}
+.world__dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-circle);
+  border: var(--border-panel);
+  vertical-align: middle;
+}
+.world__row--champ {
+  background: var(--bg-panel);
+}
+.world__row--champ .world__rank,
+.world__row--champ .world__name {
+  color: var(--accent-gold-bright);
+}
+.world__row--releg {
+  opacity: 0.55;
+}
+.world__row--releg .world__rank {
+  color: var(--color-danger);
+}
+.screen--world tbody tr {
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.screen--world tbody tr:hover {
+  background: var(--bg-panel-raised);
+}
+.screen--world .chip {
+  margin-top: var(--space-16);
+}

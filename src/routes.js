@@ -20,6 +20,7 @@ export const ROUTE_PATTERNS = Object.freeze({
   careerTransfer: '/career/transfer',
   careerFinance: '/career/finance',
   careerLegacy: '/career/legacy',
+  world: '/world/:leagueId',
   styleguide: '/styleguide',
 })
 
@@ -45,6 +46,10 @@ export function ifResultPath() {
 
 export function styleguidePath() {
   return '/styleguide'
+}
+
+export function worldPath(leagueId) {
+  return `/world/${leagueId}`
 }
 
 export function careerPath() {
