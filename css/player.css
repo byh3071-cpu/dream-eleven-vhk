@@ -1,0 +1,119 @@
+/* 선수 모드 화면(playerMode.js). 색 리터럴 금지 — tokens.css var()만(designLint). */
+
+.screen--player {
+  padding: var(--space-24) var(--space-16);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.player__title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+.player__sub {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin: var(--space-4) 0 var(--space-20);
+}
+.player__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+.player__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.player__label {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.player__input,
+.player__select {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: var(--border-panel);
+  border-radius: var(--radius-6);
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--text-md);
+  font-family: var(--font-body);
+}
+.player__kinds {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+.player__start {
+  margin-top: var(--space-8);
+}
+.player__badge {
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-6);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-16);
+  border: var(--border-panel);
+}
+.player__badge--in {
+  color: var(--accent-gold-bright);
+  border-color: var(--accent-gold);
+}
+.player__stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-bottom: var(--space-20);
+}
+.player__stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+.player__stat-label {
+  width: 4rem;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+.player__bar {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.player__bar-fill {
+  height: 100%;
+  background: var(--accent-gold);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-base) var(--ease-decelerate);
+}
+.player__stat-val {
+  width: 2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.player__play {
+  width: 100%;
+  margin-bottom: var(--space-16);
+}
+.player__log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.player__log-line {
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-panel);
+}
+.player__back {
+  margin-top: var(--space-16);
+}
