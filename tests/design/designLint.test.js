@@ -61,7 +61,11 @@ describe('designLint — 색 리터럴은 tokens.css에만', () => {
 })
 
 describe('designLint — JS에 hex 색 금지', () => {
+  // 구단 색은 UI 디자인 색이 아니라 콘텐츠 데이터다(월드 84팀+ 각 팀 고유색, 35개국은
+  // 런타임 생성). 디자인 토큰 규칙의 의도는 "UI 색을 토큰화"하는 것이므로, world 구단
+  // 데이터 파일(src/world/data/)만 hex를 허용한다. UI/컴포넌트 JS는 여전히 var()만.
   const jsFiles = listFiles(path.join(ROOT, 'src'), '.js')
+    .filter((f) => !f.replace(/\\/g, '/').includes('/world/data/'))
 
   test.each(jsFiles.map((f) => [path.relative(ROOT, f), f]))(
     '%s 에 hex 색 없음',
