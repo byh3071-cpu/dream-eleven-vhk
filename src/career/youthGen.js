@@ -36,9 +36,10 @@ function between(rng, min, max) {
 }
 
 // 유스 1명 생성 — id는 youth_s{season}_{n}(DB/필러와 충돌 불가 네임스페이스).
-export function generateYouth({ season, index, rng }) {
+export function generateYouth({ season, index, rng, position: forcedPosition }) {
   const nation = pick(rng, NATIONS)
-  const position = pick(rng, YOUTH_POSITIONS)
+  // position 옵셔널(월드 로스터 생성이 포지션 밸런스를 위해 지정) — 없으면 기존대로 랜덤.
+  const position = forcedPosition ?? pick(rng, YOUTH_POSITIONS)
   const core = POSITION_CORE_STATS[position]
   const age = between(rng, 15, 17)
 
