@@ -7,6 +7,9 @@
 // 4팀→84팀 마이그레이션이 없다(advisor 권고 — 돌아가는 커리어·IF 보호).
 
 import { KOREA_CLUBS } from './data/korea.js'
+import { JAPAN_CLUBS } from './data/japan.js'
+import { ENGLAND_CLUBS } from './data/england.js'
+import { SPAIN_CLUBS } from './data/spain.js'
 
 export const LEAGUES = [
   {
@@ -22,10 +25,42 @@ export const LEAGUES = [
     financeCapRatio: 0.7,               // 선수비용 ≤ 구단 수입 70%(비율캡)
     promotion: 0, relegation: 1,        // 1부: 승격 없음, 자동강등 1(+승강PO는 추후)
   },
-  // ─── 확장 예정 ───────────────────────────────────────────
-  // J 글로리(일 20팀·rounds:2·득실차우선·제휴국무제한), E 프리미어(영 20팀·홈그로운),
-  // S 리가(스 20팀·승자승우선·샐러리캡) = docs/world/{japan,england,spain}-league.md 참조.
-  // 35개국은 국가 프로필(리그명·도시풀·강도·스타일) + 생성기로 추가.
+  {
+    id: 'j_glory',
+    name: 'J 글로리',
+    country: '일본',
+    tier: 1,
+    clubs: JAPAN_CLUBS,                 // 수작업 20팀(플래그십)
+    rounds: 2,                          // 더블 라운드로빈: 20팀 → 38R
+    tiebreak: ['points', 'goalDiff', 'goalsFor', 'wins'], // 골득실 우선(J리그)
+    foreignCap: 5,                      // + 제휴국 무제한(C-4에서 메커닉화)
+    financeCapRatio: 0.75,              // 라이선스 게이트 근사
+    promotion: 0, relegation: 3,        // 자동강등 3(+승강PO는 C-4)
+  },
+  {
+    id: 'e_premier',
+    name: 'E 프리미어',
+    country: '영국',
+    tier: 1,
+    clubs: ENGLAND_CLUBS,               // 수작업 20팀(플래그십)
+    rounds: 2,                          // 38R
+    tiebreak: ['points', 'goalDiff', 'goalsFor'], // 골득실 우선(EPL)
+    homegrown: 8,                       // 25인 중 자국 육성 최소(C-4에서 강제)
+    promotion: 0, relegation: 3,
+  },
+  {
+    id: 's_liga',
+    name: 'S 리가',
+    country: '스페인',
+    tier: 1,
+    clubs: SPAIN_CLUBS,                 // 수작업 20팀(플래그십)
+    rounds: 2,                          // 38R
+    tiebreak: ['points', 'headToHead', 'goalDiff', 'goalsFor'], // 승자승 우선(라리가)
+    foreignCap: 3,                      // 비EU 쿼터
+    salaryCap: true,                    // 클럽별 샐러리캡(C-4에서 등록 차단형)
+    promotion: 0, relegation: 3,
+  },
+  // 35개국은 국가 프로필(리그명·도시풀·강도·스타일) + 생성기로 추가(C-3 후속).
 ]
 
 export function findLeague(id) {
