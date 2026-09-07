@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "roster_files": [],
+  "link_files": [
+    "docs/state/next-task.md"
+  ],
+  "ecosystem_sha256": "eeadc48d1ca1ec4136c14114ab68691e4ae3aa0dd78f09035bf6ccbab0fc4b7d",
+  "state_entrypoint": true
+}

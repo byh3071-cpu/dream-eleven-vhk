@@ -18,7 +18,7 @@ tags: [process, documentation]
 ## 현재 상태
 - **Phase:** Phase 1 — MVP
 - **블로커:** 없음
-- **다음 액션:** **FILL**
+- **다음 액션:** [현재 작업 원본 확인](docs/state/next-task.md)
 - **마지막 업데이트:** 2026-07-02
 
 ## 세션 종료
