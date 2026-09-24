@@ -4,6 +4,8 @@ date: 2026-07-02
 tags: [process, documentation]
 ---
 
+@AGENTS.md
+
 # 기록 규칙 (dream-eleven-vhk)
 
 > 이 파일은 기록/운영 전용. 코딩/디자인 → .cursorrules 참조.
