@@ -1,10 +1,8 @@
-# Next Task
+# 현재 작업 확인
 
-_Auto-updated 2026-07-03T02:53:48.807Z via `vhk goal next`._
+> 상태 조회용 진입점. 실행 상태·완료 조건은 아래 원본과 현재 Git에서 확인한다.
 
-```
-TASK: Goal 7 — 배포
-  status: NOT_STARTED
-  priority: P1
-  file: C:\Users\Public\dev\games\dream-eleven-vhk\goals\7-deploy.md
-```
+- [goals/25-league-expansion.md](../../goals/25-league-expansion.md)
+
+- 작업 전 `goals/*.md` frontmatter와 보류·차단 사유를 함께 읽고, 이번 세션에서 수행할 작업 하나를 선택한다.
+- 과거 스냅샷만으로 작업 재개·완료·배포를 판단하지 않는다.
